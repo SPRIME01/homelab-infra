@@ -6,30 +6,30 @@ all:
         control_nodes:
           hosts:
             beelink:
-              ansible_host: "{{ beelink_ip }}"
+              ansible_host: "{{ lookup('env', 'BEELINK_HOST') }}"
               ansible_connection: ssh
-              ansible_user: "{{ beelink_user }}"
-              node_type: "{{ beelink_node_type }}"
-              cpu_cores: "{{ beelink_cpu_cores }}"
-              memory_gb: "{{ beelink_memory_gb }}"
+              ansible_user: "{{ lookup('env', 'BEELINK_USER') }}"
+              node_type: "server"
+              cpu_cores: "{{ lookup('env', 'BEELINK_CPU_CORES') }}"
+              memory_gb: "{{ lookup('env', 'BEELINK_MEMORY_GB') }}"
         ai_nodes:
           hosts:
             jetson:
-              ansible_host: "{{ jetson_ip }}"
+              ansible_host: "{{ lookup('env', 'JETSON_HOST') }}"
               ansible_connection: ssh
-              ansible_user: "{{ jetson_user }}"
-              node_type: "{{ jetson_node_type }}"
-              cuda_enabled: "{{ jetson_cuda_enabled }}"
-              gpu_memory: "{{ jetson_gpu_memory }}"
+              ansible_user: "{{ lookup('env', 'JETSON_USER') }}"
+              node_type: "edge_device"
+              cuda_enabled: true
+              gpu_memory: "{{ lookup('env', 'JETSON_GPU_MEMORY') }}"
         home_automation_nodes:
           hosts:
             ha_yellow:
-              ansible_host: "{{ ha_yellow_ip }}"
+              ansible_host: "{{ lookup('env', 'HA_YELLOW_HOST') }}"
               ansible_connection: ssh
-              ansible_user: "{{ ha_yellow_user }}"
-              ansible_ssh_common_args: "{{ ha_yellow_ssh_args }}"
-              node_type: "{{ ha_yellow_node_type }}"
-              zigbee_enabled: "{{ ha_yellow_zigbee_enabled }}"
+              ansible_user: "{{ lookup('env', 'HA_YELLOW_USER') }}"
+              ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+              node_type: "home_automation"
+              zigbee_enabled: true
   vars:
     ansible_python_interpreter: /usr/bin/python3
     timezone: America/New_York
