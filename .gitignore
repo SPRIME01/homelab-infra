@@ -1,0 +1,79 @@
+# General
+.DS_Store
+*.log
+*.swp
+*~
+.env
+.env.*
+!.env.example
+
+# IDE/Editor specific
+.idea/
+.vscode/
+*.sublime-*
+.project
+.settings/
+
+# Ansible
+*.retry
+ansible/*.retry
+.ansible/
+vault.key
+vault.yml
+vault.yaml
+group_vars/*/vault.yml
+host_vars/*/vault.yml
+
+# Pulumi
+.pulumi/
+**/bin/
+**/obj/
+**/node_modules/
+dist/
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# TypeScript
+*.js
+*.js.map
+*.d.ts
+.tsbuildinfo
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+.kube/
+*-secrets.yaml
+*-secrets.yml
+*secret*.yaml
+*secret*.yml
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.csr
+*.srl
+*.p12
+*.pfx
+
+# Local development
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraformrc
+terraform.rc
+*.tfvars
+.terraform.lock.hcl
+
+# Logs and temp files
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS generated
+Thumbs.db
+.directory
