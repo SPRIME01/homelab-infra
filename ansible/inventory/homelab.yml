@@ -32,4 +32,4 @@ all:
               zigbee_enabled: true
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    timezone: America/New_York
+    timezone: "{{ lookup('env', 'TIMEZONE') }}"
