@@ -1,0 +1,35 @@
+# Common variables for all hosts in the homelab group
+# Network configuration
+beelink_ip: 192.168.1.10
+jetson_ip: 192.168.1.11
+ha_yellow_ip: 192.168.1.12
+
+# Node type definitions
+beelink_node_type: server
+jetson_node_type: edge_device
+ha_yellow_node_type: home_automation
+
+# Hardware specifications
+beelink_cpu_cores: 4
+beelink_memory_gb: 16
+jetson_cuda_enabled: true
+jetson_gpu_memory: 8
+ha_yellow_zigbee_enabled: true
+
+# SSH configurations 
+ha_yellow_ssh_args: '-o StrictHostKeyChecking=no'
+
+# Users are stored in vault for security
+# Load sensitive variables from vault
+vault_beelink_user: admin
+vault_jetson_user: ubuntu
+vault_ha_yellow_user: homeassistant
+
+# Include vault file with sensitive variables
+beelink_user: "{{ vault_beelink_user }}"
+jetson_user: "{{ vault_jetson_user }}"
+ha_yellow_user: "{{ vault_ha_yellow_user }}"
+
+# Pulumi configuration from .env file
+pulumi_config_passphrase: "{{ lookup('env', 'PULUMI_CONFIG_PASSPHRASE') }}"
+pulumi_backend_url: "{{ lookup('env', 'PULUMI_BACKEND_URL') }}"
