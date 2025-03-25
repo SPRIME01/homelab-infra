@@ -23,7 +23,7 @@ Managing infrastructure for:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/homelab-infra.git
+git clone https://github.com/SPRIME01/homelab-infra.git
 cd homelab-infra
 ```
 
