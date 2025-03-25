@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  author: Homelab Admin
+  description: Ansible role to configure NVIDIA Jetson AGX Orin for AI/ML workloads
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+  galaxy_tags:
+    - jetson
+    - nvidia
+    - cuda
+    - ml
+    - ai
+    - gpu
+    - tensorrt
+    - cudnn
+    - kubernetes
+    - homelab
+
+dependencies: []

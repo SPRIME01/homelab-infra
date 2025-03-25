@@ -1,0 +1,50 @@
+---
+# Machine Learning libraries setup tasks
+
+- name: Check if cuDNN is installed
+  stat:
+    path: /usr/local/cuda/include/cudnn.h
+  register: cudnn_installed
+
+- name: Check if TensorRT is installed
+  stat:
+    path: /usr/include/NvInferRuntime.h
+  register: tensorrt_installed
+
+- name: Install cuDNN and TensorRT from apt
+  apt:
+    name:
+      - libcudnn8={{ cudnn_version }}*
+      - libcudnn8-dev={{ cudnn_version }}*
+      - tensorrt={{ tensorrt_version }}*
+    state: present
+  ignore_errors: true
+  register: ml_libs_apt
+
+- name: Install OpenCV dependencies
+  apt:
+    name:
+      - libopencv-dev
+      - python3-opencv
+    state: present
+
+- name: Set up symlinks for ML libraries
+  file:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    state: link
+  with_items:
+    - { src: '/usr/lib/aarch64-linux-gnu/libcudnn.so', dest: '/usr/local/cuda/lib64/libcudnn.so' }
+    - { src: '/usr/include/cudnn.h', dest: '/usr/local/cuda/include/cudnn.h' }
+  when: not cudnn_installed.stat.exists and ml_libs_apt is success
+
+- name: Set paths for NVIDIA ML libraries
+  lineinfile:
+    path: /etc/environment
+    regexp: "{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    state: present
+  with_items:
+    - { key: "CUDNN_VERSION", value: "{{ cudnn_version }}" }
+    - { key: "TENSORRT_VERSION", value: "{{ tensorrt_version }}" }
+    - { key: "LD_LIBRARY_PATH", value: "/usr/local/cuda/lib64:${LD_LIBRARY_PATH}" }

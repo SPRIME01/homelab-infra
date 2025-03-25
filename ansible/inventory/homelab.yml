@@ -1,0 +1,34 @@
+---
+all:
+  children:
+    homelab:
+      children:
+        control_nodes:
+          hosts:
+            beelink:
+              ansible_host: 192.168.0.51
+              ansible_connection: ssh
+              ansible_user: ubuntu
+              node_type: wsl2
+              cpu_cores: 4
+              memory_gb: 8
+        ai_nodes:
+          hosts:
+            jetson:
+              ansible_host: 192.168.0.66
+              ansible_connection: ssh
+              ansible_user: nvidia
+              node_type: jetson
+              cuda_enabled: true
+              gpu_memory: 64GB
+        home_automation_nodes:
+          hosts:
+            ha_yellow:
+              ansible_host: 192.168.0.41
+              ansible_connection: ssh
+              ansible_user: homeassistant
+              node_type: home_assistant
+              zigbee_enabled: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    timezone: America/New_York

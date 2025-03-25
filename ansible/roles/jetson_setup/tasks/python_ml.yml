@@ -1,0 +1,39 @@
+---
+# Python ML environment setup
+
+- name: Install virtualenv
+  apt:
+    name: python3-venv
+    state: present
+
+- name: Create virtual environment for ML
+  command: python3 -m venv {{ python_venv_dir }}
+  args:
+    creates: "{{ python_venv_dir }}"
+
+- name: Upgrade pip in virtual environment
+  pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ python_venv_dir }}"
+
+- name: Install Python packages for ML in virtual environment
+  pip:
+    name: "{{ python_packages }}"
+    state: present
+    virtualenv: "{{ python_venv_dir }}"
+  register: pip_install
+  ignore_errors: true
+
+- name: Show pip install failures if any
+  debug:
+    msg: "Failed to install some Python packages. This is normal for some packages that require compilation or GPU-specific versions."
+  when: pip_install.failed
+
+- name: Create activate script wrapper
+  template:
+    src: ml-env.sh.j2
+    dest: /etc/profile.d/ml-env.sh
+    owner: root
+    group: root
+    mode: '0644'

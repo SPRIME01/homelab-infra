@@ -1,0 +1,11 @@
+# Set the I/O scheduler for NVMe devices
+ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="mq-deadline"
+
+# Set the I/O scheduler for SATA/eMMC devices
+ACTION=="add|change", KERNEL=="sd[a-z]|mmcblk[0-9]*", ATTR{queue/scheduler}="bfq"
+
+# Optimize read-ahead for NVMe devices
+ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/read_ahead_kb}="2048"
+
+# Set the read-ahead for SATA/eMMC devices
+ACTION=="add|change", KERNEL=="sd[a-z]|mmcblk[0-9]*", ATTR{queue/read_ahead_kb}="1024"

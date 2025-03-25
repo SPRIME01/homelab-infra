@@ -1,0 +1,55 @@
+---
+# Package management
+package_upgrade: true
+package_upgrade_type: "safe"
+
+# Timezone
+system_timezone: "UTC"
+
+# Common utilities to install
+common_packages:
+  - vim
+  - htop
+  - tmux
+  - git
+  - curl
+  - wget
+  - unzip
+  - iotop
+  - nmon
+  - tcpdump
+  - rsync
+  - tree
+  - net-tools
+  - dnsutils
+  - lsof
+
+# Firewall configuration
+configure_firewall: true
+ufw_rules:
+  - port: "22"
+    rule: "allow"
+    proto: "tcp"
+
+# NTP configuration
+ntp_servers:
+  - "0.pool.ntp.org"
+  - "1.pool.ntp.org"
+  - "2.pool.ntp.org"
+  - "3.pool.ntp.org"
+
+# Security hardening
+harden_ssh: true
+ssh_port: 22
+permit_root_login: "no"
+password_authentication: "no"
+allow_agent_forwarding: "no"
+allow_tcp_forwarding: "no"
+x11_forwarding: "no"
+max_auth_tries: 3
+max_sessions: 4
+client_alive_interval: 300
+client_alive_count_max: 2
+
+harden_passwords: true
+disable_core_dumps: true

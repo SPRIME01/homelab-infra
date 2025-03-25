@@ -1,0 +1,44 @@
+---
+# Main tasks file for jetson_setup role
+
+- name: Check if running on Jetson AGX Orin
+  shell: grep -q "NVIDIA Jetson AGX Orin" /proc/device-tree/model
+  register: is_jetson_agx_orin
+  ignore_errors: true
+  changed_when: false
+
+- name: Fail if not running on Jetson AGX Orin
+  fail:
+    msg: "This role is designed for NVIDIA Jetson AGX Orin devices only."
+  when: is_jetson_agx_orin.rc != 0
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install system packages
+  apt:
+    name: "{{ system_packages }}"
+    state: present
+
+- name: Import system configuration tasks
+  import_tasks: system_config.yml
+
+- name: Import power optimization tasks
+  import_tasks: power_optimization.yml
+
+- name: Import CUDA setup tasks
+  import_tasks: cuda_setup.yml
+
+- name: Import ML libraries tasks
+  import_tasks: ml_libraries.yml
+
+- name: Import container runtime tasks
+  import_tasks: container_runtime.yml
+
+- name: Import Python ML environment setup
+  import_tasks: python_ml.yml
+
+- name: Import monitoring setup tasks
+  import_tasks: monitoring.yml

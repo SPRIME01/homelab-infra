@@ -1,0 +1,23 @@
+---
+- name: Install NTP
+  apt:
+    name: chrony
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Configure chrony
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart chrony
+  when: ansible_os_family == "Debian"
+
+- name: Enable and start chrony service
+  service:
+    name: chrony
+    state: started
+    enabled: yes
+  when: ansible_os_family == "Debian"

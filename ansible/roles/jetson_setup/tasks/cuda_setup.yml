@@ -1,0 +1,46 @@
+---
+# CUDA setup tasks
+
+- name: Check if CUDA is already installed
+  stat:
+    path: /usr/local/cuda
+  register: cuda_installed
+
+- name: Check CUDA version if installed
+  shell: nvcc --version | grep -oP "release \K[0-9]+\.[0-9]+"
+  register: installed_cuda_version
+  when: cuda_installed.stat.exists
+  changed_when: false
+  ignore_errors: true
+
+- name: Configure CUDA environment variables
+  template:
+    src: cuda.sh.j2
+    dest: /etc/profile.d/cuda.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set up library paths for CUDA
+  template:
+    src: cuda-ldconfig.conf.j2
+    dest: /etc/ld.so.conf.d/cuda.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: run ldconfig
+
+- name: Configure GPU memory allocation
+  lineinfile:
+    path: /etc/nvidia-container-runtime/config.toml
+    regexp: '^#?\s*"nvidia-smi"'
+    line: '    "nvidia-smi" = ["-a", "--query-gpu=memory.total,memory.used,memory.free", "--format=csv,nounits,noheader"]'
+    state: present
+  when: cuda_installed.stat.exists
+
+- name: Configure NVCC alternatives
+  alternatives:
+    name: cuda
+    link: /usr/bin/nvcc
+    path: /usr/local/cuda/bin/nvcc
+  when: cuda_installed.stat.exists

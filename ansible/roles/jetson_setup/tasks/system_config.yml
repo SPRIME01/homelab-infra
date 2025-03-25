@@ -1,0 +1,66 @@
+---
+# System configuration tasks
+
+- name: Set hostname
+  hostname:
+    name: "{{ jetson_hostname }}"
+  notify: update hosts file
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ jetson_timezone }}"
+
+- name: Generate locale
+  locale_gen:
+    name: "{{ jetson_locale }}"
+    state: present
+
+- name: Configure swap
+  block:
+    - name: Check if swap file exists
+      stat:
+        path: /swapfile
+      register: swap_file
+
+    - name: Create swap file
+      command: dd if=/dev/zero of=/swapfile bs=1M count={{ jetson_swap_size_mb }}
+      when: not swap_file.stat.exists
+
+    - name: Set swap file permissions
+      file:
+        path: /swapfile
+        mode: 0600
+      when: not swap_file.stat.exists
+
+    - name: Make swap
+      command: mkswap /swapfile
+      when: not swap_file.stat.exists
+
+    - name: Enable swap
+      command: swapon /swapfile
+      when: not swap_file.stat.exists
+
+    - name: Add swap to fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+        state: present
+      when: not swap_file.stat.exists
+
+- name: Configure sysctl for AI workloads
+  template:
+    src: sysctl-ai.conf.j2
+    dest: /etc/sysctl.d/99-ai-workloads.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: reload sysctl
+
+- name: Configure I/O scheduler
+  template:
+    src: io-scheduler.conf.j2
+    dest: /etc/udev/rules.d/60-io-scheduler.rules
+    owner: root
+    group: root
+    mode: 0644
+  notify: reload udev

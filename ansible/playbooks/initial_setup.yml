@@ -1,0 +1,92 @@
+---
+- name: Initial Setup for Homelab Nodes
+  hosts: all
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Check connectivity to all nodes
+      ping:
+      register: ping_result
+
+    - name: Verify all nodes are reachable
+      debug:
+        msg: "Node {{ inventory_hostname }} is reachable"
+      when: ping_result is success
+
+    - name: Check system information
+      setup:
+        gather_subset:
+          - min
+
+  roles:
+    - role: common
+      tags: always
+
+  post_tasks:
+    - name: Verify base configuration
+      debug:
+        msg: "Common configuration applied to {{ inventory_hostname }}"
+
+- name: Configure K3s Control Nodes
+  hosts: control_nodes
+  become: true
+  gather_facts: true
+  roles:
+    - role: k3s_server
+      tags: k3s_control
+
+  post_tasks:
+    - name: Verify K3s Server Installation
+      command: k3s check-config
+      register: k3s_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Report K3s Server Status
+      debug:
+        msg: "K3s server configuration applied to {{ inventory_hostname }}"
+
+- name: Configure AI Nodes
+  hosts: ai_nodes
+  become: true
+  gather_facts: true
+  roles:
+    - role: jetson_setup
+      tags: ai_setup
+    - role: k3s_agent
+      tags: k3s_agent
+
+  post_tasks:
+    - name: Verify AI Node Setup
+      debug:
+        msg: "AI node configuration completed on {{ inventory_hostname }}"
+
+- name: Configure Home Automation Nodes
+  hosts: home_automation
+  become: true
+  gather_facts: true
+  roles:
+    - role: home_assistant_integration
+      tags: home_automation
+
+  post_tasks:
+    - name: Verify Home Automation Setup
+      debug:
+        msg: "Home automation integration completed on {{ inventory_hostname }}"
+
+- name: Finalize All Node Setup
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Verify all services are running
+      command: systemctl is-system-running
+      register: system_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Report final status
+      debug:
+        msg: "Initial setup completed on {{ inventory_hostname }} - System status: {{ system_status.stdout }}"

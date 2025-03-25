@@ -1,0 +1,37 @@
+---
+# Monitoring tools setup
+
+- name: Install monitoring tools
+  apt:
+    name:
+      - nvtop
+      - htop
+      - iotop
+      - lm-sensors
+    state: present
+
+- name: Configure sensors detection
+  command: sensors-detect --auto
+  changed_when: false
+
+- name: Create monitoring service for GPU stats
+  template:
+    src: jetson-stats.service.j2
+    dest: /etc/systemd/system/jetson-stats.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart jetson-stats
+
+- name: Install jtop (Jetson stats)
+  pip:
+    name: jetson-stats
+    state: present
+  register: jtop_install
+
+- name: Enable and start jetson-stats service
+  systemd:
+    name: jetson-stats
+    enabled: yes
+    state: started
+  when: jtop_install is success

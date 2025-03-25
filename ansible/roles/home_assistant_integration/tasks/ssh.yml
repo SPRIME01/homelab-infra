@@ -1,0 +1,48 @@
+---
+# Tasks for SSH configuration
+
+- name: Install SSH add-on
+  shell: ha add-on install core_ssh
+  become: true
+  ignore_errors: yes
+  register: ssh_install
+  changed_when: "'Installed' in ssh_install.stdout"
+
+- name: Configure SSH add-on
+  template:
+    src: ssh.j2
+    dest: /config/ssh.yaml
+    owner: homeassistant
+    group: homeassistant
+    mode: '0644'
+  become: true
+  notify: restart ssh
+
+- name: Ensure SSH authorized_keys directory exists
+  file:
+    path: /config/.ssh
+    state: directory
+    owner: homeassistant
+    group: homeassistant
+    mode: '0700'
+  become: true
+
+- name: Add SSH authorized keys
+  template:
+    src: authorized_keys.j2
+    dest: /config/.ssh/authorized_keys
+    owner: homeassistant
+    group: homeassistant
+    mode: '0600'
+  become: true
+  notify: restart ssh
+
+- name: Start SSH add-on
+  shell: ha add-on start core_ssh
+  become: true
+  ignore_errors: yes
+
+- name: Configure SSH port forwarding
+  shell: ha network open 22
+  become: true
+  ignore_errors: yes

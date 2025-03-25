@@ -1,0 +1,65 @@
+---
+# Container runtime setup tasks
+
+- name: Add NVIDIA Docker repository GPG key
+  apt_key:
+    url: "{{ nvidia_docker_repo_gpg_key }}"
+    state: present
+  when: nvidia_container_runtime
+
+- name: Add NVIDIA Docker repository
+  get_url:
+    url: "{{ nvidia_docker_repo_url }}"
+    dest: /etc/apt/sources.list.d/nvidia-docker.list
+    mode: '0644'
+  when: nvidia_container_runtime
+
+- name: Update apt cache after adding repository
+  apt:
+    update_cache: yes
+  when: nvidia_container_runtime
+
+- name: Install NVIDIA container runtime
+  apt:
+    name:
+      - nvidia-container-toolkit
+      - nvidia-container-runtime
+    state: present
+  when: nvidia_container_runtime
+  notify: restart docker
+
+- name: Check if Docker is installed
+  command: which docker
+  register: docker_installed
+  ignore_errors: true
+  changed_when: false
+
+- name: Install Docker
+  apt:
+    name:
+      - docker.io
+      - docker-compose
+    state: present
+  when: docker_installed.rc != 0
+
+- name: Configure Docker to use NVIDIA runtime
+  template:
+    src: docker-daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart docker
+  when: nvidia_container_runtime
+
+- name: Create Docker group if it doesn't exist
+  group:
+    name: docker
+    state: present
+
+- name: Add user to Docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+  when: docker_installed.rc == 0 or not docker_installed.failed

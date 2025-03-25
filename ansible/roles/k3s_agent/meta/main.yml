@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: Homelab Admin
+  description: Role to install K3s agent on NVIDIA Jetson AGX Orin
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+  galaxy_tags:
+    - k3s
+    - kubernetes
+    - jetson
+    - nvidia
+    - homelab
+    - iot
+    - edge
+
+dependencies: []

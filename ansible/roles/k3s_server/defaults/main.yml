@@ -1,0 +1,39 @@
+---
+# K3s version to install
+k3s_version: "v1.26.6+k3s1"
+k3s_release_url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/k3s"
+
+# Service configuration
+k3s_systemd_dir: "/etc/systemd/system"
+k3s_service_name: "k3s"
+
+# K3s install options
+k3s_install_dir: "/usr/local/bin"
+k3s_config_dir: "/etc/rancher/k3s"
+k3s_server_config_file: "{{ k3s_config_dir }}/config.yaml"
+k3s_kubeconfig_file: "/etc/rancher/k3s/k3s.yaml"
+k3s_kubeconfig_mode: "0644"
+k3s_token_file: "{{ k3s_config_dir }}/server/node-token"
+
+# Disable components that we don't need or will replace
+k3s_disable_traefik: true
+k3s_disable_servicelb: true
+
+# Network configuration
+k3s_flannel_backend: "vxlan"
+k3s_cluster_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+k3s_cluster_dns: "10.43.0.10"
+k3s_cluster_domain: "cluster.local"
+
+# WSL-specific settings
+k3s_wsl_specific: true
+k3s_bind_address: "0.0.0.0"
+
+# Resource limits
+k3s_node_name: "{{ ansible_hostname }}"
+k3s_node_labels: []
+k3s_node_taints: []
+
+# Additional features
+k3s_enable_metrics_server: true

@@ -1,0 +1,46 @@
+---
+- name: Check if K3s binary is already installed
+  stat:
+    path: "{{ k3s_install_dir }}/k3s"
+  register: k3s_binary
+
+- name: Download K3s binary
+  get_url:
+    url: "{{ k3s_release_url }}"
+    dest: "{{ k3s_install_dir }}/k3s"
+    mode: '0755'
+    force: true
+  become: true
+  when: not k3s_binary.stat.exists or k3s_binary.stat.exists and (k3s_version not in k3s_binary.stat.checksum)
+  notify:
+    - restart k3s
+
+- name: Create K3s server configuration
+  template:
+    src: config.yaml.j2
+    dest: "{{ k3s_server_config_file }}"
+    owner: root
+    group: root
+    mode: '0600'
+  become: true
+  notify:
+    - restart k3s
+
+- name: Create K3s systemd service
+  template:
+    src: k3s.service.j2
+    dest: "{{ k3s_systemd_dir }}/{{ k3s_service_name }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  notify:
+    - restart k3s
+
+- name: Ensure K3s service is enabled and started
+  systemd:
+    name: "{{ k3s_service_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: true

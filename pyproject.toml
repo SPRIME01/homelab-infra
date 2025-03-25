@@ -1,0 +1,12 @@
+[project]
+name = "homelab-infra"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ansible>=10.7.0",
+    "ansible-lint>=25.1.3",
+    "jmespath>=1.0.1",
+    "netaddr>=1.3.0",
+]

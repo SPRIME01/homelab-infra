@@ -1,0 +1,15 @@
+[Unit]
+Description=Jetson Stats Monitoring Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/jtop --service
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=jetson-stats
+
+[Install]
+WantedBy=multi-user.target

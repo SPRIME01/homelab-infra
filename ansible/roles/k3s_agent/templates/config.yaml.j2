@@ -1,0 +1,22 @@
+# K3s agent configuration
+node-name: {{ node_hostname }}
+node-ip: {{ node_ip }}
+kubelet-arg:
+  - "feature-gates=DevicePlugins=true"
+  - "system-reserved=memory=512Mi"
+  - "kube-reserved=memory=256Mi"
+  - "cgroup-driver=systemd"
+
+# Configure containerd for NVIDIA GPU
+container-runtime-endpoint: unix:///run/containerd/containerd.sock
+
+# Additional labels and taints
+node-label:
+  - "jetson.nvidia.com/gpu=true"
+  - "topology.kubernetes.io/region=homelab"
+  - "topology.kubernetes.io/zone=office"
+  - "nvidia.com/device=gpu"
+
+# Set agent specific flags
+server: {{ k3s_server_url }}
+token: {{ k3s_token }}

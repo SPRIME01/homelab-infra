@@ -1,0 +1,28 @@
+---
+- name: Check K3s agent service status
+  systemd:
+    name: k3s-agent
+    state: started
+  register: k3s_agent_status
+  failed_when: not k3s_agent_status.status.ActiveState == "active"
+
+- name: Verify node can access K3s server
+  command: k3s check-config
+  register: k3s_check_config
+  changed_when: false
+  ignore_errors: yes
+
+- name: Display K3s agent logs
+  command: journalctl -u k3s-agent -n 20 --no-pager
+  register: k3s_agent_logs
+  changed_when: false
+
+- name: Verify NVIDIA GPU is detected by K3s
+  shell: k3s kubectl get nodes {{ node_hostname }} -o json | grep -q nvidia.com/gpu
+  register: nvidia_gpu_detected
+  changed_when: false
+  ignore_errors: yes
+
+- name: Display NVIDIA GPU status
+  debug:
+    msg: "NVIDIA GPU detected: {{ nvidia_gpu_detected.rc == 0 }}"

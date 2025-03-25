@@ -1,0 +1,6 @@
+---
+- name: Install common utilities
+  apt:
+    name: "{{ common_packages }}"
+    state: present
+  when: ansible_os_family == "Debian"

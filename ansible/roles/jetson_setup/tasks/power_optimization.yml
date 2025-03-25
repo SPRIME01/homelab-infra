@@ -1,0 +1,43 @@
+---
+# Power optimization tasks
+
+- name: Check current power mode
+  shell: nvpmodel -q | grep -oP "(?<=NV Power Mode: )[A-Z0-9]+"
+  register: current_power_mode
+  changed_when: false
+
+- name: Set power mode
+  command: nvpmodel -m {{ power_mode_map[jetson_power_mode] }}
+  when: current_power_mode.stdout != jetson_power_mode
+  vars:
+    power_mode_map:
+      MAXN: 0
+      30W: 1
+      25W: 2
+      20W: 3
+      15W: 4
+      10W: 5
+
+- name: Check if fan control is enabled
+  stat:
+    path: /sys/devices/pwm-fan/temp_control
+  register: fan_control_file
+
+- name: Enable fan control
+  copy:
+    content: "1"
+    dest: /sys/devices/pwm-fan/temp_control
+  when: fan_control_file.stat.exists
+
+- name: Configure CPU governor
+  copy:
+    content: "performance"
+    dest: "/sys/devices/system/cpu/cpu{{ item }}/cpufreq/scaling_governor"
+  with_sequence: count={{ ansible_processor_cores }}
+  when: jetson_power_mode == "MAXN"
+
+- name: Configure GPU frequency (maximum performance)
+  shell: |
+    echo 1 > /sys/devices/gpu.0/force_idle
+    echo 1 > /sys/devices/gpu.0/railgate_enable
+  when: jetson_power_mode == "MAXN"

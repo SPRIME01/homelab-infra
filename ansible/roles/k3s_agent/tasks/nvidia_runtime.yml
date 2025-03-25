@@ -1,0 +1,60 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: yes
+
+- name: Add NVIDIA Docker repository GPG key
+  apt_key:
+    url: "{{ nvidia_docker_repo_gpg_key }}"
+    state: present
+
+- name: Add NVIDIA Docker repository
+  get_url:
+    url: "{{ nvidia_docker_repo_url }}"
+    dest: /etc/apt/sources.list.d/nvidia-docker.list
+    mode: '0644'
+
+- name: Install NVIDIA container runtime
+  apt:
+    name:
+      - nvidia-container-toolkit
+      - nvidia-container-runtime
+    state: present
+    update_cache: yes
+  register: nvidia_runtime_installed
+
+- name: Verify NVIDIA drivers are installed
+  command: nvidia-smi
+  register: nvidia_smi_result
+  ignore_errors: yes
+  changed_when: false
+
+- name: Fail if NVIDIA drivers are not properly installed
+  fail:
+    msg: "NVIDIA drivers are not properly installed. Please install them before proceeding."
+  when: nvidia_smi_result.rc != 0
+
+- name: Configure containerd to use NVIDIA runtime
+  template:
+    src: containerd-config.toml.j2
+    dest: /etc/containerd/config.toml
+    mode: '0644'
+  register: containerd_config
+
+- name: Restart containerd service
+  systemd:
+    name: containerd
+    state: restarted
+  when: containerd_config.changed
+
+- name: Set nvidia_container_runtime_installed flag
+  set_fact:
+    nvidia_container_runtime_installed: true
+  when: nvidia_runtime_installed.changed

@@ -1,0 +1,39 @@
+---
+# K3s server configuration
+bind-address: {{ k3s_bind_address }}
+# Network configuration
+flannel-backend: {{ k3s_flannel_backend }}
+cluster-cidr: {{ k3s_cluster_cidr }}
+service-cidr: {{ k3s_service_cidr }}
+cluster-dns: {{ k3s_cluster_dns }}
+cluster-domain: {{ k3s_cluster_domain }}
+# Node configuration
+node-name: {{ k3s_node_name }}
+{% if k3s_node_labels | length > 0 %}
+node-label:
+{% for label in k3s_node_labels %}
+  - "{{ label }}"
+{% endfor %}
+{% endif %}
+{% if k3s_node_taints | length > 0 %}
+node-taint:
+{% for taint in k3s_node_taints %}
+  - "{{ taint }}"
+{% endfor %}
+{% endif %}
+# WSL specific configurations
+{% if k3s_wsl_specific %}
+# Disable some default functionality for WSL compatibility
+disable-cloud-controller: true
+{% endif %}
+# Disabled components
+{% if k3s_disable_traefik %}
+disable: traefik
+{% endif %}
+{% if k3s_disable_servicelb %}
+disable-servicelb: true
+{% endif %}
+# Enable metrics server
+{% if k3s_enable_metrics_server %}
+enable-metrics-server: true
+{% endif %}

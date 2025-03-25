@@ -1,0 +1,155 @@
+---
+- name: Configure secure SSH access across homelab nodes
+  hosts: all
+  become: true
+  vars:
+    ssh_key_type: ed25519
+    ssh_key_bits: 4096
+    ssh_key_comment: "homelab-ansible"
+    ssh_key_path: "~/.ssh/id_{{ ssh_key_type }}"
+    ssh_config_path: "/etc/ssh/sshd_config"
+    ssh_permit_root_login: "no"
+    ssh_password_authentication: "no"
+    ssh_pubkey_authentication: "yes"
+    ssh_max_auth_tries: 3
+    ssh_port: 22
+    trusted_users:
+      - "{{ ansible_user }}"
+    home_assistant: "{{ 'homeassistant' in group_names }}"
+
+  tasks:
+    - name: Create .ssh directory on control node
+      file:
+        path: "~/.ssh"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Generate SSH key on control node if it doesn't exist
+      openssh_keypair:
+        path: "{{ ssh_key_path }}"
+        type: "{{ ssh_key_type }}"
+        size: "{{ ssh_key_bits }}"
+        comment: "{{ ssh_key_comment }}"
+        state: present
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Get SSH key content
+      command: "cat {{ ssh_key_path }}.pub"
+      register: ssh_pubkey_content
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Set facts for SSH configuration
+      set_fact:
+        ssh_pubkey: "{{ ssh_pubkey_content.stdout }}"
+
+    - name: Install SSH server
+      package:
+        name: openssh-server
+        state: present
+      when: not home_assistant
+
+    - name: Create .ssh directory for each user
+      file:
+        path: "/home/{{ item }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ item }}"
+        group: "{{ item }}"
+      loop: "{{ trusted_users }}"
+      when: not home_assistant
+
+    # Home Assistant specific setup
+    - name: Ensure SSH is enabled on Home Assistant
+      command: ha ssh
+      when: home_assistant
+      ignore_errors: true
+
+    - name: Create SSH directory on Home Assistant
+      file:
+        path: "/home/{{ ansible_user }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: home_assistant
+
+    # Setup authorized_keys for all systems
+    - name: Set up authorized_keys for trusted users
+      authorized_key:
+        user: "{{ item }}"
+        key: "{{ ssh_pubkey }}"
+        state: present
+      loop: "{{ trusted_users }}"
+
+    # SSH hardening configuration
+    - name: Configure SSH hardening (Ubuntu systems)
+      lineinfile:
+        path: "{{ ssh_config_path }}"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: "PermitRootLogin {{ ssh_permit_root_login }}" }
+        - { regexp: '^#?PasswordAuthentication', line: "PasswordAuthentication {{ ssh_password_authentication }}" }
+        - { regexp: '^#?PubkeyAuthentication', line: "PubkeyAuthentication {{ ssh_pubkey_authentication }}" }
+        - { regexp: '^#?MaxAuthTries', line: "MaxAuthTries {{ ssh_max_auth_tries }}" }
+        - { regexp: '^#?Protocol', line: "Protocol 2" }
+        - { regexp: '^#?KexAlgorithms', line: "KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256" }
+        - { regexp: '^#?Ciphers', line: "Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr" }
+        - { regexp: '^#?MACs', line: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com" }
+      when: not home_assistant
+      notify: Restart SSH
+
+    - name: Configure SSH custom port (if not default)
+      lineinfile:
+        path: "{{ ssh_config_path }}"
+        regexp: '^#?Port '
+        line: "Port {{ ssh_port }}"
+        state: present
+      when: ssh_port != 22 and not home_assistant
+      notify: Restart SSH
+
+    # Host keys setup for known_hosts
+    - name: Fetch host keys from all nodes
+      command: ssh-keyscan -p {{ ssh_port }} {{ ansible_host }}
+      register: host_keys
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Add host keys to known_hosts file
+      known_hosts:
+        path: "~/.ssh/known_hosts"
+        name: "{{ ansible_host }}"
+        key: "{{ host_keys.stdout }}"
+        state: present
+      delegate_to: localhost
+      become: false
+      run_once: false
+
+    # Test SSH connectivity
+    - name: Test SSH connectivity from control node to all nodes
+      shell: ssh -o BatchMode=yes -o ConnectTimeout=5 {{ ansible_user }}@{{ ansible_host }} echo "SSH connection successful"
+      register: ssh_test
+      delegate_to: localhost
+      become: false
+      ignore_errors: true
+      changed_when: false
+
+    - name: Display SSH connectivity test results
+      debug:
+        msg: "SSH connectivity to {{ ansible_host }}: {{ 'SUCCESS' if ssh_test.rc == 0 else 'FAILED - ' + ssh_test.stderr }}"
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted

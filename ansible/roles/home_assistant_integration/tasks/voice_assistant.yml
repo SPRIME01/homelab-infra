@@ -1,0 +1,49 @@
+---
+# Tasks for voice assistant configuration
+
+- name: Install required voice assistant add-ons
+  shell: "ha add-on install {{ item }}"
+  become: true
+  ignore_errors: yes
+  with_items:
+    - "core_mariadb"
+    - "a0d7b954_piper"
+    - "a0d7b954_wyoming"
+  register: voice_install
+  changed_when: "'Installed' in voice_install.stdout"
+
+- name: Configure voice assistant integration
+  template:
+    src: voice_assistant.j2
+    dest: /config/integrations/voice_assistant.yaml
+    owner: homeassistant
+    group: homeassistant
+    mode: '0644'
+  become: true
+  notify: restart home assistant
+
+- name: Ensure voice assistant integration is included in configuration
+  lineinfile:
+    path: /config/configuration.yaml
+    line: "conversation: !include integrations/voice_assistant.yaml"
+    state: present
+  become: true
+  notify: reload home assistant configuration
+
+- name: Configure Wyoming integration
+  template:
+    src: wyoming.j2
+    dest: /config/wyoming.yaml
+    owner: homeassistant
+    group: homeassistant
+    mode: '0644'
+  become: true
+
+- name: Start voice assistant add-ons
+  shell: "ha add-on start {{ item }}"
+  become: true
+  ignore_errors: yes
+  with_items:
+    - "core_mariadb"
+    - "a0d7b954_piper"
+    - "a0d7b954_wyoming"

@@ -1,0 +1,187 @@
+---
+- name: Deploy K3s Control Plane
+  hosts: control_nodes
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install K3s server
+      shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+      register: k3s_server_install
+      tags:
+        - k3s
+        - k3s_server
+        - install
+
+    - name: Wait for node-token to be generated
+      wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+        delay: 5
+        timeout: 60
+      tags:
+        - k3s
+        - k3s_server
+
+    - name: Get K3s token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token
+      tags:
+        - k3s
+        - k3s_server
+
+    - name: Store K3s token as fact
+      set_fact:
+        k3s_token: "{{ k3s_token.content | b64decode | trim }}"
+      tags:
+        - k3s
+        - k3s_server
+
+    - name: Get K3s server URL
+      set_fact:
+        k3s_url: "https://{{ ansible_default_ipv4.address }}:6443"
+      tags:
+        - k3s
+        - k3s_server
+
+    - name: Configure kubectl on control node
+      block:
+        - name: Create kubectl config directory
+          file:
+            path: /root/.kube
+            state: directory
+            mode: '0700'
+
+        - name: Copy kubeconfig to standard location
+          copy:
+            src: /etc/rancher/k3s/k3s.yaml
+            dest: /root/.kube/config
+            remote_src: yes
+            mode: '0600'
+
+        - name: Update kubeconfig server address
+          replace:
+            path: /root/.kube/config
+            regexp: 'https://127.0.0.1:6443'
+            replace: "{{ k3s_url }}"
+      tags:
+        - k3s
+        - kubectl
+        - config
+
+    - name: Verify K3s server health
+      command: kubectl get nodes
+      register: k3s_nodes
+      changed_when: false
+      tags:
+        - k3s
+        - verify
+
+- name: Deploy K3s Agent on AI Nodes
+  hosts: ai_nodes
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install K3s agent
+      shell: curl -sfL https://get.k3s.io | K3S_URL={{ hostvars[groups['control_nodes'][0]].k3s_url }} K3S_TOKEN={{ hostvars[groups['control_nodes'][0]].k3s_token }} sh -
+      args:
+        creates: /usr/local/bin/k3s-agent
+      tags:
+        - k3s
+        - k3s_agent
+        - install
+
+    - name: Wait for agent to register with cluster
+      pause:
+        seconds: 30
+      tags:
+        - k3s
+        - k3s_agent
+
+- name: Configure K3s Cluster Elements
+  hosts: control_nodes
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Verify cluster with all nodes
+      command: kubectl get nodes
+      register: k3s_cluster_nodes
+      changed_when: false
+      tags:
+        - k3s
+        - verify
+
+    - name: Display cluster nodes
+      debug:
+        var: k3s_cluster_nodes.stdout_lines
+      tags:
+        - k3s
+        - verify
+
+    - name: Set up persistent storage
+      block:
+        - name: Create local storage class yaml
+          copy:
+            dest: /tmp/local-storage.yaml
+            content: |
+              apiVersion: storage.k8s.io/v1
+              kind: StorageClass
+              metadata:
+                name: local-storage
+              provisioner: kubernetes.io/no-provisioner
+              volumeBindingMode: WaitForFirstConsumer
+            mode: '0644'
+
+        - name: Apply local storage class
+          command: kubectl apply -f /tmp/local-storage.yaml
+          register: storage_class_result
+          changed_when: "'created' in storage_class_result.stdout or 'configured' in storage_class_result.stdout"
+      tags:
+        - k3s
+        - storage
+
+    - name: Verify persistent volumes
+      command: kubectl get storageclasses
+      register: storage_classes
+      changed_when: false
+      tags:
+        - k3s
+        - storage
+        - verify
+
+    - name: Display storage classes
+      debug:
+        var: storage_classes.stdout_lines
+      tags:
+        - k3s
+        - storage
+        - verify
+
+    - name: Verify cluster health
+      command: kubectl get componentstatuses
+      register: k3s_health
+      changed_when: false
+      ignore_errors: true
+      tags:
+        - k3s
+        - verify
+
+    - name: Display cluster health
+      debug:
+        var: k3s_health.stdout_lines
+      ignore_errors: true
+      tags:
+        - k3s
+        - verify
+
+    - name: Final verification
+      debug:
+        msg: "K3s cluster setup completed successfully"
+      tags:
+        - k3s
+        - verify

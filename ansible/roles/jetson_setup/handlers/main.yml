@@ -1,0 +1,37 @@
+---
+# Handlers for jetson_setup role
+
+- name: update hosts file
+  template:
+    src: hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: reload sysctl
+  command: sysctl --system
+
+- name: reload udev
+  command: udevadm control --reload-rules && udevadm trigger
+
+- name: run ldconfig
+  command: ldconfig
+
+- name: restart docker
+  systemd:
+    name: docker
+    state: restarted
+    daemon_reload: yes
+
+- name: restart containerd
+  systemd:
+    name: containerd
+    state: restarted
+    daemon_reload: yes
+
+- name: restart jetson-stats
+  systemd:
+    name: jetson-stats
+    state: restarted
+    daemon_reload: yes

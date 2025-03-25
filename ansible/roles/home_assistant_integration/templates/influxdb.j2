@@ -1,0 +1,19 @@
+# InfluxDB Add-on Configuration
+auth: true
+reporting: true
+ssl: false
+certfile: fullchain.pem
+keyfile: privkey.pem
+envvars:
+  - name: INFLUXDB_DB
+    value: {{ influxdb_database }}
+  - name: INFLUXDB_USER
+    value: {{ influxdb_username }}
+  - name: INFLUXDB_USER_PASSWORD
+    value: {{ influxdb_password }}
+  - name: INFLUXDB_ADMIN_USER
+    value: admin
+  - name: INFLUXDB_ADMIN_PASSWORD
+    value: {{ influxdb_password }}
+  - name: INFLUXDB_RETENTION
+    value: {{ influxdb_retention_policy }}

@@ -1,0 +1,50 @@
+---
+- name: Check if K3s agent is already installed
+  stat:
+    path: "{{ k3s_service_file }}"
+  register: k3s_agent_service
+
+- name: Set up NVIDIA GPU runtime prerequisites
+  import_tasks: nvidia_runtime.yml
+  when: not k3s_agent_service.stat.exists
+
+- name: Create K3s configuration directory
+  file:
+    path: "{{ k3s_config_dir }}"
+    state: directory
+    mode: '0755'
+  when: not k3s_agent_service.stat.exists
+
+- name: Create K3s agent configuration
+  template:
+    src: config.yaml.j2
+    dest: "{{ k3s_config_dir }}/config.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+  when: not k3s_agent_service.stat.exists
+
+- name: Install K3s agent
+  shell: |
+    curl -sfL {{ k3s_installer_url }} | \
+    K3S_URL={{ k3s_server_url }} \
+    K3S_TOKEN={{ k3s_token }} \
+    sh -s - {{ k3s_agent_flags | join(' ') }} --config {{ k3s_config_dir }}/config.yaml
+  args:
+    creates: "{{ k3s_service_file }}"
+  register: k3s_agent_install
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  notify: restart k3s-agent
+
+- name: Configure K3s service to start on boot
+  systemd:
+    name: k3s-agent
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: not k3s_agent_service.stat.exists
+
+- name: Verify K3s agent installation
+  import_tasks: verify.yml
+  when: k3s_agent_install is succeeded or k3s_agent_service.stat.exists

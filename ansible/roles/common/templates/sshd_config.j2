@@ -1,0 +1,39 @@
+# SSH server configuration managed by Ansible
+
+# Basic SSH settings
+Port {{ ssh_port }}
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Authentication settings
+PermitRootLogin {{ permit_root_login }}
+MaxAuthTries {{ max_auth_tries }}
+MaxSessions {{ max_sessions }}
+PubkeyAuthentication yes
+PasswordAuthentication {{ password_authentication }}
+
+# Forwarding settings
+AllowAgentForwarding {{ allow_agent_forwarding }}
+AllowTcpForwarding {{ allow_tcp_forwarding }}
+X11Forwarding {{ x11_forwarding }}
+
+# Connection settings
+ClientAliveInterval {{ client_alive_interval }}
+ClientAliveCountMax {{ client_alive_count_max }}
+UseDNS no
+PrintMotd no
+AcceptEnv LANG LC_*
+
+# Subsystem settings
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+# Security settings
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KerberosAuthentication no
+GSSAPIAuthentication no
+IgnoreRhosts yes
+HostbasedAuthentication no
+StrictModes yes
+Banner none

@@ -1,0 +1,29 @@
+---
+# Handlers for home_assistant_integration role
+
+- name: restart home assistant
+  service:
+    name: home-assistant
+    state: restarted
+  become: true
+
+- name: restart mosquitto
+  service:
+    name: mosquitto
+    state: restarted
+  become: true
+
+- name: restart ssh
+  service:
+    name: sshd
+    state: restarted
+  become: true
+
+- name: reload home assistant configuration
+  uri:
+    url: "http://localhost:8123/api/services/homeassistant/reload_core_config"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ home_assistant_token }}"
+    status_code: 200
+  become: false

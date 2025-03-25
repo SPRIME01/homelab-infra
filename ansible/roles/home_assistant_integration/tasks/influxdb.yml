@@ -1,0 +1,41 @@
+---
+# Tasks for InfluxDB configuration
+
+- name: Install InfluxDB add-on
+  shell: ha add-on install a0d7b954_influxdb
+  become: true
+  ignore_errors: yes
+  register: influxdb_install
+  changed_when: "'Installed' in influxdb_install.stdout"
+
+- name: Configure InfluxDB add-on
+  template:
+    src: influxdb.j2
+    dest: /config/influxdb.yaml
+    owner: homeassistant
+    group: homeassistant
+    mode: '0644'
+  become: true
+
+- name: Configure InfluxDB integration in Home Assistant
+  template:
+    src: influxdb_integration.j2
+    dest: /config/integrations/influxdb.yaml
+    owner: homeassistant
+    group: homeassistant
+    mode: '0644'
+  become: true
+  notify: restart home assistant
+
+- name: Ensure InfluxDB integration is included in configuration
+  lineinfile:
+    path: /config/configuration.yaml
+    line: "influxdb: !include integrations/influxdb.yaml"
+    state: present
+  become: true
+  notify: reload home assistant configuration
+
+- name: Start InfluxDB add-on
+  shell: ha add-on start a0d7b954_influxdb
+  become: true
+  ignore_errors: yes

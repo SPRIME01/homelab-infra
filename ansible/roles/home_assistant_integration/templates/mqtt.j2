@@ -1,0 +1,13 @@
+# MQTT Integration Configuration
+broker: {{ mqtt_broker_host }}
+port: {{ mqtt_broker_port }}
+username: {{ mqtt_username }}
+password: {{ mqtt_password }}
+discovery: true
+discovery_prefix: {{ mqtt_discovery_prefix }}
+birth_message:
+  topic: 'homeassistant/status'
+  payload: 'online'
+will_message:
+  topic: 'homeassistant/status'
+  payload: 'offline'

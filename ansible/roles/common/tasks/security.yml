@@ -1,0 +1,36 @@
+---
+- name: Configure SSH hardening
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0600'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: restart ssh
+  when: ansible_os_family == "Debian" and harden_ssh | bool
+
+- name: Set password policies
+  template:
+    src: pwquality.conf.j2
+    dest: /etc/security/pwquality.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_os_family == "Debian" and harden_passwords | bool
+
+- name: Configure system limits
+  template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_os_family == "Debian"
+
+- name: Disable core dumps
+  lineinfile:
+    path: /etc/security/limits.conf
+    line: "* hard core 0"
+    state: present
+  when: ansible_os_family == "Debian" and disable_core_dumps | bool

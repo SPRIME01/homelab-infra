@@ -1,0 +1,50 @@
+---
+- name: Wait for node-token file to be created
+  wait_for:
+    path: "{{ k3s_token_file }}"
+    state: present
+    delay: 5
+    timeout: 300
+  become: true
+
+- name: Register node-token
+  slurp:
+    src: "{{ k3s_token_file }}"
+  register: node_token
+  become: true
+
+- name: Set fact for node-token
+  set_fact:
+    k3s_node_token: "{{ node_token.content | b64decode | trim }}"
+
+- name: Set kubeconfig permissions
+  file:
+    path: "{{ k3s_kubeconfig_file }}"
+    mode: "{{ k3s_kubeconfig_mode }}"
+    state: file
+  become: true
+
+- name: Create kubectl symlink
+  file:
+    src: "{{ k3s_install_dir }}/k3s"
+    dest: "{{ k3s_install_dir }}/kubectl"
+    state: link
+  become: true
+
+- name: Create user kubeconfig directory
+  file:
+    path: "{{ ansible_env.HOME }}/.kube"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_gid }}"
+
+- name: Copy kubeconfig to user home
+  copy:
+    src: "{{ k3s_kubeconfig_file }}"
+    dest: "{{ ansible_env.HOME }}/.kube/config"
+    remote_src: yes
+    mode: '0600'
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_gid }}"
+  become: true

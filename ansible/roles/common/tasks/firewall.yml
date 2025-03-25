@@ -1,0 +1,27 @@
+---
+- name: Install UFW
+  apt:
+    name: ufw
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Configure default UFW rules
+  ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+  when: ansible_os_family == "Debian" and configure_firewall | bool
+
+- name: Allow SSH
+  ufw:
+    rule: allow
+    name: OpenSSH
+  when: ansible_os_family == "Debian" and configure_firewall | bool
+
+- name: Configure additional UFW rules
+  ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+  loop: "{{ ufw_rules }}"
+  when: ansible_os_family == "Debian" and configure_firewall | bool and ufw_rules is defined

@@ -1,0 +1,41 @@
+---
+- name: Wait for K3s server to be ready
+  command: kubectl --kubeconfig={{ k3s_kubeconfig_file }} get nodes
+  register: node_status
+  until: node_status.rc == 0
+  retries: 24
+  delay: 5
+  changed_when: false
+  become: true
+
+- name: Get node status
+  command: kubectl --kubeconfig={{ k3s_kubeconfig_file }} get nodes -o wide
+  register: nodes_status
+  changed_when: false
+  become: true
+
+- name: Display node status
+  debug:
+    var: nodes_status.stdout_lines
+
+- name: Check core components status
+  command: kubectl --kubeconfig={{ k3s_kubeconfig_file }} get pods -A
+  register: pods_status
+  changed_when: false
+  become: true
+
+- name: Display core components status
+  debug:
+    var: pods_status.stdout_lines
+
+- name: Verify K3s server service is running
+  systemd:
+    name: "{{ k3s_service_name }}"
+    state: started
+    enabled: yes
+  become: true
+  register: k3s_service_status
+
+- name: Show K3s service status
+  debug:
+    var: k3s_service_status

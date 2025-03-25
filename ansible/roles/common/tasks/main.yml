@@ -1,0 +1,29 @@
+---
+- name: Include OS-specific variables
+  include_vars: "{{ ansible_distribution|lower }}.yml"
+  when: ansible_distribution|lower is defined
+  tags: always
+
+- name: Import package tasks
+  import_tasks: packages.yml
+  tags: packages
+
+- name: Import timezone tasks
+  import_tasks: timezone.yml
+  tags: timezone
+
+- name: Import NTP tasks
+  import_tasks: ntp.yml
+  tags: ntp
+
+- name: Import utilities tasks
+  import_tasks: utilities.yml
+  tags: utilities
+
+- name: Import firewall tasks
+  import_tasks: firewall.yml
+  tags: firewall
+
+- name: Import security tasks
+  import_tasks: security.yml
+  tags: security

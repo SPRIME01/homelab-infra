@@ -1,0 +1,50 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - iptables
+      - apparmor-utils
+      - open-iscsi
+      - nfs-common
+      - apt-transport-https
+    state: present
+    update_cache: true
+  become: true
+
+- name: Create K3s configuration directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  with_items:
+    - "{{ k3s_config_dir }}"
+    - "{{ k3s_config_dir }}/server"
+  become: true
+
+- name: Check if running in WSL
+  command: grep -q Microsoft /proc/version
+  register: is_wsl
+  failed_when: false
+  changed_when: false
+
+- name: Apply WSL-specific configurations
+  block:
+    - name: Enable required sysctls for WSL
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "{{ item }}"
+        create: yes
+      with_items:
+        - "net.ipv4.ip_forward=1"
+        - "net.ipv4.conf.all.forwarding=1"
+      become: true
+      when: k3s_wsl_specific and is_wsl.rc == 0
+
+    - name: Apply sysctls
+      command: sysctl -p
+      become: true
+      when: k3s_wsl_specific and is_wsl.rc == 0
+  when: k3s_wsl_specific and is_wsl.rc == 0
