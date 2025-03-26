@@ -4,13 +4,33 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "declaration": true,
-    "sourceMap": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "experimentalDecorators": true,
+    "forceConsistentCasingInFileNames": true,
     "outDir": "bin",
     "rootDir": ".",
-    "strict": true,
-    "esModuleInterop": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "node_modules/*",
+        "../storage/src/*"
+      ]
+    }
   },
-  "files": [
-    "index.ts"
+  "include": [
+    "**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../storage"
+    }
   ]
 }
