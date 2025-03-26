@@ -70,6 +70,597 @@ generate_passphrase() {
     fi
 }
 
+# Function to create a more comprehensive TypeScript project structure
+create_typescript_project_structure() {
+    local project_dir=$1
+    local project_type=$2
+
+    # Create src directory structure
+    mkdir -p "$project_dir/src/components"
+    mkdir -p "$project_dir/src/types"
+    mkdir -p "$project_dir/src/config"
+    mkdir -p "$project_dir/src/utils"
+
+    # Create base configuration file
+    cat > "$project_dir/src/config/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+
+// Configuration for the ${project_type} stack
+export const config = new pulumi.Config();
+
+// Common configuration values
+export const environment = config.require("environment");
+export const namespace = config.get("namespace") || "${project_type}";
+
+// Resource tags
+export const tags = {
+    "environment": environment,
+    "managedBy": "pulumi",
+    "project": "${project_type}"
+};
+EOF
+
+    # Create utility functions
+    cat > "$project_dir/src/utils/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+
+/**
+ * Create a resource name with a consistent format
+ */
+export function createResourceName(
+    baseName: string,
+    suffix?: string
+): string {
+    const stack = pulumi.getStack();
+    return suffix
+        ? \`\${baseName}-\${stack}-\${suffix}\`
+        : \`\${baseName}-\${stack}\`;
+}
+
+/**
+ * Format error messages consistently
+ */
+export function formatError(message: string, err: any): string {
+    return \`Error: \${message}. Details: \${err}\`;
+}
+EOF
+
+    # Create types
+    cat > "$project_dir/src/types/index.ts" << EOF
+import * as k8s from "@pulumi/kubernetes";
+
+/**
+ * Common resource options
+ */
+export interface CommonResourceOptions {
+    provider?: k8s.Provider;
+    dependsOn?: pulumi.Resource[];
+    namespace?: string;
+    tags?: {[key: string]: string};
+}
+
+/**
+ * Component output interface
+ */
+export interface ComponentOutput {
+    name: string;
+    status?: pulumi.Output<string>;
+    endpoint?: pulumi.Output<string>;
+}
+EOF
+
+    # Create main index.ts based on project type
+    if [ "$project_type" = "cluster-setup" ]; then
+        create_cluster_setup_files "$project_dir"
+    elif [ "$project_type" = "core-services" ]; then
+        create_core_services_files "$project_dir"
+    elif [ "$project_type" = "storage" ]; then
+        create_storage_files "$project_dir"
+    fi
+
+    # Update the main index.ts file
+    cat > "$project_dir/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import { setup } from "./src";
+
+// Run the main setup function and export the outputs
+export const outputs = setup();
+EOF
+}
+
+# Function to create cluster-setup specific files
+create_cluster_setup_files() {
+    local project_dir=$1
+
+    # Create main setup file
+    cat > "$project_dir/src/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import { K3sCluster } from "./components/k3sCluster";
+import { KubeConfig } from "./components/kubeConfig";
+import { config } from "./config";
+
+/**
+ * Main setup function for the K3s cluster
+ */
+export function setup() {
+    // Create the K3s cluster
+    const cluster = new K3sCluster("k3s", {
+        nodeCount: config.getNumber("nodeCount") || 3,
+        version: config.get("k3sVersion") || "v1.27.1+k3s1",
+        networkCidr: config.get("networkCidr") || "10.42.0.0/16",
+    });
+
+    // Generate and export kubeconfig
+    const kubeConfig = new KubeConfig("kubeconfig", {
+        clusterId: cluster.id,
+        endpoint: cluster.endpoint,
+    });
+
+    return {
+        kubeconfig: kubeConfig.path,
+        clusterEndpoint: cluster.endpoint,
+        clusterName: cluster.name,
+    };
+}
+EOF
+
+    # Create K3s cluster component
+    mkdir -p "$project_dir/src/components/k3sCluster"
+    cat > "$project_dir/src/components/k3sCluster/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as command from "@pulumi/command";
+import { ComponentOutput } from "../../types";
+import { createResourceName } from "../../utils";
+
+export interface K3sClusterArgs {
+    nodeCount: number;
+    version: string;
+    networkCidr: string;
+}
+
+export class K3sCluster extends pulumi.ComponentResource {
+    public readonly id: pulumi.Output<string>;
+    public readonly name: string;
+    public readonly endpoint: pulumi.Output<string>;
+
+    constructor(name: string, args: K3sClusterArgs, opts?: pulumi.ComponentResourceOptions) {
+        const resourceName = createResourceName(name);
+        super("homelab:k3s:Cluster", resourceName, {}, opts);
+
+        this.name = resourceName;
+
+        // This is a simplified example. In reality, you would use specific
+        // provider resources to create K3s nodes or leverage cloud resources
+
+        // Install K3s master node
+        const master = new command.local.Command("k3s-master", {
+            create: pulumi.interpolate\`curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=\${args.version} sh -s - --cluster-cidr=\${args.networkCidr}\`,
+            delete: "k3s-uninstall.sh",
+        }, { parent: this });
+
+        // Extract kubeconfig and API endpoint
+        const getKubeconfig = master.stdout.apply(_ => {
+            return new command.local.Command("get-kubeconfig", {
+                create: "cat /etc/rancher/k3s/k3s.yaml | grep server | awk '{print $2}'",
+            }, { parent: this });
+        });
+
+        this.endpoint = getKubeconfig.stdout.apply(stdout => stdout.trim());
+        this.id = pulumi.output(resourceName);
+
+        this.registerOutputs({
+            id: this.id,
+            endpoint: this.endpoint,
+        });
+    }
+}
+EOF
+
+    # Create KubeConfig component
+    mkdir -p "$project_dir/src/components/kubeConfig"
+    cat > "$project_dir/src/components/kubeConfig/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as command from "@pulumi/command";
+
+export interface KubeConfigArgs {
+    clusterId: pulumi.Output<string>;
+    endpoint: pulumi.Output<string>;
+}
+
+export class KubeConfig extends pulumi.ComponentResource {
+    public readonly path: pulumi.Output<string>;
+
+    constructor(name: string, args: KubeConfigArgs, opts?: pulumi.ComponentResourceOptions) {
+        super("homelab:k3s:KubeConfig", name, {}, opts);
+
+        // Export the kubeconfig to a file
+        const kubeConfigCmd = new command.local.Command("export-kubeconfig", {
+            create: "mkdir -p ~/.kube && sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/k3s-config",
+        }, { parent: this });
+
+        this.path = kubeConfigCmd.stdout.apply(_ => "~/.kube/k3s-config");
+
+        this.registerOutputs({
+            path: this.path,
+        });
+    }
+}
+EOF
+}
+
+# Function to create core-services specific files
+create_core_services_files() {
+    local project_dir=$1
+
+    # Create main setup file
+    cat > "$project_dir/src/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { CertManager } from "./components/certManager";
+import { Traefik } from "./components/traefik";
+import { config } from "./config";
+
+/**
+ * Main setup function for core services
+ */
+export function setup() {
+    // Create Kubernetes provider using the kubeconfig from cluster-setup
+    const k8sProvider = new k8s.Provider("k8s-provider", {
+        kubeconfig: config.requireSecret("kubeconfig"),
+    });
+
+    // Install cert-manager
+    const certManager = new CertManager("cert-manager", {
+        namespace: "cert-manager",
+        version: config.get("certManagerVersion") || "v1.12.0",
+        createNamespace: true,
+    }, { provider: k8sProvider });
+
+    // Install Traefik
+    const traefik = new Traefik("traefik", {
+        namespace: "traefik",
+        version: config.get("traefikVersion") || "23.0.0",
+        createNamespace: true,
+        email: config.requireSecret("letsencryptEmail"),
+    }, {
+        provider: k8sProvider,
+        dependsOn: [certManager],
+    });
+
+    return {
+        certManagerStatus: certManager.status,
+        traefikEndpoint: traefik.endpoint,
+    };
+}
+EOF
+
+    # Create cert-manager component
+    mkdir -p "$project_dir/src/components/certManager"
+    cat > "$project_dir/src/components/certManager/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { ComponentOutput, CommonResourceOptions } from "../../types";
+
+export interface CertManagerArgs {
+    namespace: string;
+    version: string;
+    createNamespace: boolean;
+}
+
+export class CertManager extends pulumi.ComponentResource {
+    public readonly status: pulumi.Output<string>;
+
+    constructor(name: string, args: CertManagerArgs, opts?: CommonResourceOptions) {
+        super("homelab:core:CertManager", name, {}, opts);
+
+        // Create namespace if requested
+        if (args.createNamespace) {
+            const ns = new k8s.core.v1.Namespace("cert-manager-ns", {
+                metadata: {
+                    name: args.namespace,
+                },
+            }, { provider: opts?.provider, parent: this });
+        }
+
+        // Add the Jetstack Helm repository
+        const certManagerRepo = new k8s.helm.v3.Release("cert-manager", {
+            chart: "cert-manager",
+            version: args.version,
+            repositoryOpts: {
+                repo: "https://charts.jetstack.io",
+            },
+            namespace: args.namespace,
+            values: {
+                installCRDs: true,
+                prometheus: {
+                    enabled: true,
+                },
+            },
+        }, { provider: opts?.provider, parent: this });
+
+        // Create a ClusterIssuer for Let's Encrypt
+        const issuer = new k8s.apiextensions.CustomResource("letsencrypt-issuer", {
+            apiVersion: "cert-manager.io/v1",
+            kind: "ClusterIssuer",
+            metadata: {
+                name: "letsencrypt-prod",
+                namespace: args.namespace,
+            },
+            spec: {
+                acme: {
+                    server: "https://acme-v02.api.letsencrypt.org/directory",
+                    email: "admin@example.com", // This should be configurable
+                    privateKeySecretRef: {
+                        name: "letsencrypt-prod-account-key",
+                    },
+                    solvers: [{
+                        http01: {
+                            ingress: {
+                                class: "traefik",
+                            },
+                        },
+                    }],
+                },
+            },
+        }, {
+            provider: opts?.provider,
+            parent: this,
+            dependsOn: [certManagerRepo],
+        });
+
+        this.status = pulumi.output("Deployed");
+
+        this.registerOutputs({
+            status: this.status,
+        });
+    }
+}
+EOF
+
+    # Create Traefik component
+    mkdir -p "$project_dir/src/components/traefik"
+    cat > "$project_dir/src/components/traefik/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { ComponentOutput, CommonResourceOptions } from "../../types";
+
+export interface TraefikArgs {
+    namespace: string;
+    version: string;
+    createNamespace: boolean;
+    email: pulumi.Input<string>;
+}
+
+export class Traefik extends pulumi.ComponentResource {
+    public readonly endpoint: pulumi.Output<string>;
+
+    constructor(name: string, args: TraefikArgs, opts?: CommonResourceOptions) {
+        super("homelab:core:Traefik", name, {}, opts);
+
+        // Create namespace if requested
+        if (args.createNamespace) {
+            const ns = new k8s.core.v1.Namespace("traefik-ns", {
+                metadata: {
+                    name: args.namespace,
+                },
+            }, { provider: opts?.provider, parent: this });
+        }
+
+        // Deploy Traefik via Helm
+        const traefikRelease = new k8s.helm.v3.Release("traefik", {
+            chart: "traefik",
+            version: args.version,
+            repositoryOpts: {
+                repo: "https://helm.traefik.io/traefik",
+            },
+            namespace: args.namespace,
+            values: {
+                deployment: {
+                    replicas: 2,
+                },
+                ingressRoute: {
+                    dashboard: {
+                        enabled: true,
+                    },
+                },
+                service: {
+                    type: "LoadBalancer",
+                },
+                additionalArguments: [
+                    "--log.level=INFO",
+                    "--providers.kubernetesingress.ingressclass=traefik",
+                    "--entrypoints.web.http.redirections.entryPoint.to=websecure",
+                    "--entrypoints.web.http.redirections.entryPoint.scheme=https",
+                ],
+            },
+        }, { provider: opts?.provider, parent: this });
+
+        // Get the Traefik service to extract the endpoint
+        const traefikService = traefikRelease.status.apply(_ => {
+            return k8s.core.v1.Service.get("traefik-service",
+                pulumi.interpolate\`\${args.namespace}/traefik\`,
+                { provider: opts?.provider }
+            );
+        });
+
+        // Extract the endpoint
+        this.endpoint = traefikService.status.loadBalancer.ingress[0].ip.apply(ip =>
+            `http://${ip}:80`
+        );
+
+        this.registerOutputs({
+            endpoint: this.endpoint,
+        });
+    }
+}
+EOF
+}
+
+# Function to create storage files
+create_storage_files() {
+    local project_dir=$1
+
+    # Create main setup file
+    cat > "$project_dir/src/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { OpenEBS } from "./components/openEBS";
+import { StorageClasses } from "./components/storageClasses";
+import { config } from "./config";
+
+/**
+ * Main setup function for storage
+ */
+export function setup() {
+    // Create Kubernetes provider using the kubeconfig from cluster-setup
+    const k8sProvider = new k8s.Provider("k8s-provider", {
+        kubeconfig: config.requireSecret("kubeconfig"),
+    });
+
+    // Install OpenEBS
+    const openEBS = new OpenEBS("openebs", {
+        namespace: "openebs",
+        version: config.get("openEBSVersion") || "3.3.0",
+        createNamespace: true,
+    }, { provider: k8sProvider });
+
+    // Setup storage classes
+    const storageClasses = new StorageClasses("storage-classes", {
+        localPathClass: config.getBoolean("enableLocalPath") || true,
+        jivaCsiClass: config.getBoolean("enableJivaCsi") || true,
+    }, {
+        provider: k8sProvider,
+        dependsOn: [openEBS],
+    });
+
+    return {
+        openEBSStatus: openEBS.status,
+        defaultStorageClass: storageClasses.defaultClass,
+    };
+}
+EOF
+
+    # Create OpenEBS component
+    mkdir -p "$project_dir/src/components/openEBS"
+    cat > "$project_dir/src/components/openEBS/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { ComponentOutput, CommonResourceOptions } from "../../types";
+
+export interface OpenEBSArgs {
+    namespace: string;
+    version: string;
+    createNamespace: boolean;
+}
+
+export class OpenEBS extends pulumi.ComponentResource {
+    public readonly status: pulumi.Output<string>;
+
+    constructor(name: string, args: OpenEBSArgs, opts?: CommonResourceOptions) {
+        super("homelab:storage:OpenEBS", name, {}, opts);
+
+        // Create namespace if requested
+        if (args.createNamespace) {
+            const ns = new k8s.core.v1.Namespace("openebs-ns", {
+                metadata: {
+                    name: args.namespace,
+                },
+            }, { provider: opts?.provider, parent: this });
+        }
+
+        // Deploy OpenEBS via Helm
+        const openebsRelease = new k8s.helm.v3.Release("openebs", {
+            chart: "openebs",
+            version: args.version,
+            repositoryOpts: {
+                repo: "https://openebs.github.io/charts",
+            },
+            namespace: args.namespace,
+            values: {
+                ndm: {
+                    enabled: true,
+                },
+                localprovisioner: {
+                    enabled: true,
+                },
+                jiva: {
+                    enabled: true,
+                },
+            },
+        }, { provider: opts?.provider, parent: this });
+
+        this.status = pulumi.output("Deployed");
+
+        this.registerOutputs({
+            status: this.status,
+        });
+    }
+}
+EOF
+
+    # Create Storage Classes component
+    mkdir -p "$project_dir/src/components/storageClasses"
+    cat > "$project_dir/src/components/storageClasses/index.ts" << EOF
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { ComponentOutput, CommonResourceOptions } from "../../types";
+
+export interface StorageClassesArgs {
+    localPathClass: boolean;
+    jivaCsiClass: boolean;
+}
+
+export class StorageClasses extends pulumi.ComponentResource {
+    public readonly defaultClass: pulumi.Output<string>;
+
+    constructor(name: string, args: StorageClassesArgs, opts?: CommonResourceOptions) {
+        super("homelab:storage:StorageClasses", name, {}, opts);
+
+        let defaultClassName = "openebs-hostpath";
+
+        // Create local-path storage class if requested
+        if (args.localPathClass) {
+            const localPath = new k8s.storage.v1.StorageClass("local-path", {
+                metadata: {
+                    name: "openebs-hostpath",
+                    annotations: {
+                        "storageclass.kubernetes.io/is-default-class": "true",
+                    },
+                },
+                provisioner: "openebs.io/local",
+                reclaimPolicy: "Delete",
+                volumeBindingMode: "WaitForFirstConsumer",
+            }, { provider: opts?.provider, parent: this });
+
+            defaultClassName = "openebs-hostpath";
+        }
+
+        // Create Jiva CSI storage class if requested
+        if (args.jivaCsiClass) {
+            const jivaCsi = new k8s.storage.v1.StorageClass("jiva-csi", {
+                metadata: {
+                    name: "openebs-jiva-csi",
+                },
+                provisioner: "jiva.csi.openebs.io",
+                reclaimPolicy: "Delete",
+                allowVolumeExpansion: true,
+                parameters: {
+                    "cas-type": "jiva",
+                    "replicaCount": "3",
+                },
+            }, { provider: opts?.provider, parent: this });
+        }
+
+        this.defaultClass = pulumi.output(defaultClassName);
+
+        this.registerOutputs({
+            defaultClass: this.defaultClass,
+        });
+    }
+}
+EOF
+}
+
 # Set up error trap
 trap handle_error ERR
 
@@ -203,10 +794,16 @@ for PROJECT in cluster-setup core-services storage; do
     log "Initializing Pulumi TypeScript project: $PROJECT..."
     PROJECT_DIR="$PROJECT_ROOT/pulumi/$PROJECT"
     cd "$PROJECT_DIR"
+
     # Create directories
     mkdir -p src src/__tests__
+
     # Create minimal package.json to avoid prompts
     create_minimal_package "$PROJECT_DIR"
+
+    # Create proper TypeScript file structure with project-specific components
+    create_typescript_project_structure "$PROJECT_DIR" "$PROJECT"
+
     # Create minimal tsconfig.json
     cat > "$PROJECT_DIR/tsconfig.json" << EOF
 {
