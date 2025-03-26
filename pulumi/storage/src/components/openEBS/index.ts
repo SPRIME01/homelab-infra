@@ -23,25 +23,107 @@ export class OpenEBS extends pulumi.ComponentResource {
             }, { provider: opts?.provider, parent: this });
         }
 
-        // Deploy OpenEBS via Helm
-        const openebsRelease = new k8s.helm.v3.Release("openebs", {
-            chart: "openebs",
-            version: args.version,
-            repositoryOpts: {
-                repo: "https://openebs.github.io/charts",
+        // Deploy OpenEBS Operator
+        const operatorDeployment = new k8s.apps.v1.Deployment("openebs-operator", {
+            metadata: {
+                name: "openebs-operator",
+                namespace: args.namespace,
             },
-            namespace: args.namespace,
-            values: {
-                ndm: {
-                    enabled: true,
+            spec: {
+                replicas: 1,
+                selector: {
+                    matchLabels: {
+                        name: "openebs-operator",
+                    },
                 },
-                localprovisioner: {
-                    enabled: true,
-                },
-                jiva: {
-                    enabled: true,
+                template: {
+                    metadata: {
+                        labels: {
+                            name: "openebs-operator",
+                        },
+                    },
+                    spec: {
+                        serviceAccountName: "openebs-maya-operator",
+                        containers: [{
+                            name: "openebs-provisioner",
+                            image: `openebs/openebs-k8s-provisioner:${args.version}`,
+                            env: [{
+                                name: "NODE_NAME",
+                                valueFrom: {
+                                    fieldRef: {
+                                        fieldPath: "spec.nodeName",
+                                    },
+                                },
+                            }],
+                        }],
+                    },
                 },
             },
+        }, { provider: opts?.provider, parent: this });
+
+        // Deploy NDM Operator
+        const ndmOperator = new k8s.apps.v1.DaemonSet("openebs-ndm", {
+            metadata: {
+                name: "openebs-ndm",
+                namespace: args.namespace,
+            },
+            spec: {
+                selector: {
+                    matchLabels: {
+                        name: "openebs-ndm",
+                    },
+                },
+                template: {
+                    metadata: {
+                        labels: {
+                            name: "openebs-ndm",
+                        },
+                    },
+                    spec: {
+                        serviceAccountName: "openebs-maya-operator",
+                        containers: [{
+                            name: "ndm",
+                            image: `openebs/node-disk-manager:${args.version}`,
+                            securityContext: {
+                                privileged: true,
+                            },
+                            volumeMounts: [{
+                                name: "device",
+                                mountPath: "/host/dev",
+                            }, {
+                                name: "udev",
+                                mountPath: "/run/udev",
+                            }],
+                        }],
+                        volumes: [{
+                            name: "device",
+                            hostPath: {
+                                path: "/dev",
+                                type: "DirectoryOrCreate",
+                            },
+                        }, {
+                            name: "udev",
+                            hostPath: {
+                                path: "/run/udev",
+                                type: "DirectoryOrCreate",
+                            },
+                        }],
+                    },
+                },
+            },
+        }, { provider: opts?.provider, parent: this });
+
+        // Create default storage class
+        const defaultStorageClass = new k8s.storage.v1.StorageClass("openebs-default", {
+            metadata: {
+                name: "openebs-jiva-default",
+                annotations: {
+                    "openebs.io/cas-type": "jiva",
+                    "cas.openebs.io/config": "- name: StoragePool\n  value: default\n",
+                },
+            },
+            provisioner: "openebs.io/provisioner-iscsi",
+            reclaimPolicy: "Delete",
         }, { provider: opts?.provider, parent: this });
 
         this.status = pulumi.output("Deployed");

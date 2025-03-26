@@ -36,16 +36,78 @@
     - role: k3s_server
       tags: k3s_control
 
-  post_tasks:
-    - name: Verify K3s Server Installation
-      command: k3s check-config
-      register: k3s_check
-      changed_when: false
-      ignore_errors: true
+  tasks:
+    - name: Install Operator Lifecycle Manager (OLM)
+      block:
+        - name: Download OLM installer script
+          get_url:
+            url: https://raw.githubusercontent.com/operator-framework/operator-lifecycle-manager/master/deploy/upstream/quickstart/install.sh
+            dest: /tmp/install-olm.sh
+            mode: '0755'
 
-    - name: Report K3s Server Status
-      debug:
-        msg: "K3s server configuration applied to {{ inventory_hostname }}"
+        - name: Execute OLM installation
+          command: /tmp/install-olm.sh
+          register: olm_install
+          changed_when: olm_install.rc == 0
+
+        - name: Wait for OLM deployments to be ready
+          k8s_info:
+            api_version: apps/v1
+            kind: Deployment
+            namespace: olm
+            wait: yes
+            wait_timeout: 300
+          register: olm_deployments
+
+    - name: Install cert-manager operator
+      k8s:
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: cert-manager
+            namespace: operators
+          spec:
+            channel: stable
+            name: cert-manager
+            source: operatorhubio-catalog
+            sourceNamespace: olm
+
+    - name: Install Traefik operator
+      k8s:
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: traefik
+            namespace: operators
+          spec:
+            channel: stable
+            name: traefik-operator
+            source: operatorhubio-catalog
+            sourceNamespace: olm
+
+  post_tasks:
+    - name: Verify K3s Server and Operator Installation
+      block:
+        - name: Check K3s configuration
+          command: k3s check-config
+          register: k3s_check
+          changed_when: false
+          ignore_errors: true
+
+        - name: Verify operator installations
+          k8s_info:
+            api_version: operators.coreos.com/v1alpha1
+            kind: ClusterServiceVersion
+            namespace: operators
+          register: installed_operators
+
+        - name: Report K3s and Operator Status
+          debug:
+            msg: "K3s server and operators configured on {{ inventory_hostname }}"
 
 - name: Configure AI Nodes
   hosts: ai_nodes
@@ -87,6 +149,15 @@
       changed_when: false
       ignore_errors: true
 
+    - name: Verify operator health
+      k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: operators
+      register: operator_status
+      when: "'control_nodes' in group_names"
+      ignore_errors: true
+
     - name: Report final status
       debug:
-        msg: "Initial setup completed on {{ inventory_hostname }} - System status: {{ system_status.stdout }}"
+        msg: "Initial setup completed on {{ inventory_hostname }} - System status: {{ system_status.stdout }} {% if 'control_nodes' in group_names %}- Operators status: {{ operator_status.resources | length }} operators installed{% endif %}"

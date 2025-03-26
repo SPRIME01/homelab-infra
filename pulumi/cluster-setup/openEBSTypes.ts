@@ -1,3 +1,5 @@
+import * as k8s from "@pulumi/kubernetes";
+
 /**
  * Input properties for the OpenEBS component
  */
@@ -48,36 +50,9 @@ export interface OpenEBSArgs {
  * Resource settings for OpenEBS components
  */
 export interface OpenEBSResourceSettings {
-    ndm?: {
-        requests?: {
-            cpu?: string;
-            memory?: string;
-        };
-        limits?: {
-            cpu?: string;
-            memory?: string;
-        };
-    };
-    provisioner?: {
-        requests?: {
-            cpu?: string;
-            memory?: string;
-        };
-        limits?: {
-            cpu?: string;
-            memory?: string;
-        };
-    };
-    localProvisioner?: {
-        requests?: {
-            cpu?: string;
-            memory?: string;
-        };
-        limits?: {
-            cpu?: string;
-            memory?: string;
-        };
-    };
+    ndm: k8s.types.input.core.v1.ResourceRequirements;
+    provisioner: k8s.types.input.core.v1.ResourceRequirements;
+    localProvisioner: k8s.types.input.core.v1.ResourceRequirements;
 }
 
 /**

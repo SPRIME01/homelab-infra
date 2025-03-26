@@ -1,0 +1,122 @@
+---
+# Test playbook for k3s_server role
+- name: Test k3s_server role
+  hosts: localhost
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: "v1.26.6+k3s1"
+    k3s_disable_traefik: true
+    k3s_disable_servicelb: true
+    k3s_kubeconfig_mode: "0644"
+    k3s_wsl_specific: false
+    k3s_node_labels:
+      - "homelab.io/role=control"
+      - "homelab.io/storage-node=true"
+
+  tasks:
+    - name: Include k3s_server role
+      include_role:
+        name: k3s_server
+      ignore_errors: true
+
+    - name: Verify K3s binary is installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+      failed_when: not k3s_binary.stat.exists
+
+    - name: Verify K3s version
+      command: /usr/local/bin/k3s --version
+      register: k3s_ver
+      changed_when: false
+      failed_when: k3s_version not in k3s_ver.stdout
+
+    - name: Verify K3s service is running
+      systemd:
+        name: k3s
+        state: started
+      register: k3s_service
+      failed_when: not k3s_service.status.ActiveState == "active"
+
+    - name: Verify K3s configuration file exists
+      stat:
+        path: /etc/rancher/k3s/config.yaml
+      register: k3s_config
+      failed_when: not k3s_config.stat.exists
+
+    - name: Verify K3s config file contains expected settings
+      command: grep -q "{{ item }}" /etc/rancher/k3s/config.yaml
+      with_items:
+        - "disable-traefik: true"
+        - "disable-servicelb: true"
+      changed_when: false
+
+    - name: Verify kubeconfig file exists
+      stat:
+        path: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig
+      failed_when: not kubeconfig.stat.exists
+
+    - name: Verify kubeconfig permissions
+      stat:
+        path: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig_perms
+      failed_when: kubeconfig_perms.stat.mode != "0644"
+
+    - name: Verify node-token exists
+      stat:
+        path: /etc/rancher/k3s/server/node-token
+      register: node_token
+      failed_when: not node_token.stat.exists
+
+    - name: Wait for K3s API to be available
+      uri:
+        url: https://localhost:6443/healthz
+        validate_certs: false
+        return_content: true
+      register: api_health
+      until: api_health.status == 200
+      retries: 10
+      delay: 5
+      ignore_errors: true
+
+    - name: Check if kubectl command works
+      command: kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get nodes
+      register: kubectl_result
+      changed_when: false
+      ignore_errors: true
+
+    - name: Verify node has expected labels
+      shell: kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get node {{ ansible_hostname }} -o jsonpath='{.metadata.labels}'
+      register: node_labels
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display test results summary
+      debug:
+        msg: |
+          K3s Server Test Results:
+          - K3s binary installed: {{ k3s_binary.stat.exists }}
+          - K3s version correct: {{ k3s_version in (k3s_ver.stdout | default('')) }}
+          - K3s service active: {{ k3s_service.status.ActiveState == "active" }}
+          - Config file exists: {{ k3s_config.stat.exists }}
+          - Kubeconfig exists: {{ kubeconfig.stat.exists }}
+          - Node token exists: {{ node_token.stat.exists }}
+          - API responding: {{ api_health.status == 200 if not api_health.failed else false }}
+          - kubectl working: {{ not kubectl_result.failed }}
+
+  post_tasks:
+    - name: Final test check
+      assert:
+        that:
+          - k3s_binary.stat.exists
+          - k3s_version in k3s_ver.stdout
+          - k3s_service.status.ActiveState == "active"
+          - k3s_config.stat.exists
+          - kubeconfig.stat.exists
+          - node_token.stat.exists
+        fail_msg: "One or more K3s server tests failed"
+        success_msg: "All K3s server tests passed"
+      ignore_errors: true

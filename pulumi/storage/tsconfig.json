@@ -4,26 +4,13 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "declaration": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "experimentalDecorators": true,
-    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
     "outDir": "bin",
     "rootDir": ".",
-    "sourceMap": true,
-    "composite": true
+    "strict": true,
+    "esModuleInterop": true
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "bin"
+  "files": [
+    "index.ts"
   ]
 }

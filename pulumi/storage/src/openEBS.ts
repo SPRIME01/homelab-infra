@@ -130,9 +130,9 @@ export class OpenEBS extends pulumi.ComponentResource {
     public readonly namespace: k8s.core.v1.Namespace;
 
     /**
-     * The OpenEBS release
+     * The OpenEBS operator deployment
      */
-    public readonly release: k8s.helm.v3.Release;
+    public readonly operator: k8s.yaml.ConfigFile;
 
     /**
      * Custom storage classes created by this component
@@ -165,68 +165,77 @@ export class OpenEBS extends pulumi.ComponentResource {
             },
         }, { parent: this });
 
-        // Deploy OpenEBS using Helm
-        this.release = new k8s.helm.v3.Release(`${prefix}${name}`, {
-            chart: "openebs",
-            version: version,
-            namespace: this.namespace.metadata.name,
-            repositoryOpts: {
-                repo: "https://openebs.github.io/charts",
-            },
-            values: {
-                // Global settings
-                analytics: {
-                    enabled: false,
-                },
-
-                // Node Disk Manager (NDM) settings
-                ndm: {
-                    enabled: true,
-                    sparse: {
-                        enabled: false, // Disable sparse files for production use
-                    },
-                    resources: resources.ndm,
-                },
-
-                // CSI driver settings - disabled by default as we'll use LocalPV
-                cstor: {
-                    enabled: false,
-                },
-
-                // OpenEBS Local PV Provisioner
-                localprovisioner: {
-                    enabled: true,
-                    resources: resources.localProvisioner,
-                    basePath: localStoragePath,
-                },
-
-                // OpenEBS Provisioner
-                provisioner: {
-                    enabled: true,
-                    resources: resources.provisioner,
-                },
-
-                // Helper components
-                snapshotOperator: {
-                    enabled: true, // Enable snapshot support
-                    resources: {
-                        limits: {
-                            memory: "200Mi",
-                            cpu: "100m",
-                        },
-                        requests: {
-                            memory: "100Mi",
-                            cpu: "50m",
-                        },
-                    },
-                },
-
-                // Default storage classes - we'll create our own optimized ones
-                defaultStorageConfig: {
-                    enabled: false,
-                },
-            },
+        // Deploy OpenEBS operator
+        this.operator = new k8s.yaml.ConfigFile(`${prefix}${name}-operator`, {
+            file: `https://openebs.github.io/charts/openebs-operator-${version}.yaml`,
+            transformations: [
+                (obj: any, opts: pulumi.CustomResourceOptions) => {
+                    if (obj.metadata) {
+                        obj.metadata.namespace = namespace;
+                    }
+                    return undefined;
+                }
+            ],
         }, { parent: this, dependsOn: this.namespace });
+
+        // Update resource limits for components
+        if (resources.ndm) {
+            new k8s.apps.v1.DaemonSet(`${prefix}${name}-ndm`, {
+                metadata: {
+                    name: "openebs-ndm",
+                    namespace: namespace,
+                },
+                spec: {
+                    selector: {
+                        matchLabels: {
+                            app: "openebs-ndm",
+                        },
+                    },
+                    template: {
+                        metadata: {
+                            labels: {
+                                app: "openebs-ndm",
+                            },
+                        },
+                        spec: {
+                            containers: [{
+                                name: "ndm",
+                                resources: resources.ndm,
+                            }],
+                        },
+                    },
+                },
+            }, { parent: this, dependsOn: this.operator });
+        }
+
+        if (resources.provisioner) {
+            new k8s.apps.v1.Deployment(`${prefix}${name}-provisioner`, {
+                metadata: {
+                    name: "openebs-provisioner",
+                    namespace: namespace,
+                },
+                spec: {
+                    selector: {
+                        matchLabels: {
+                            app: "openebs-provisioner",
+                        },
+                    },
+        template: {
+            metadata: {
+                labels: {
+                    app: "openebs-provisioner",
+                },
+            },
+            spec: {
+                containers: [{
+                    name: "openebs-provisioner",
+                    resources: resources.provisioner,
+                }],
+            },
+        },
+                },
+            }, { parent: this, dependsOn: this.operator });
+        }
 
         // Create custom storage classes if enabled
         if (createStorageClasses) {
@@ -254,7 +263,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/general`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operator });
 
             // Database-optimized storage class (for MySQL, PostgreSQL, etc.)
             this.storageClasses.database = new k8s.storage.v1.StorageClass(`${prefix}${name}-database`, {
@@ -274,7 +283,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/database`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operator });
 
             // Cache-optimized storage class (for Redis, Memcached, etc.)
             this.storageClasses.cache = new k8s.storage.v1.StorageClass(`${prefix}${name}-cache`, {
@@ -294,7 +303,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/cache`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operator });
 
             // Backup storage class (for backups, artifacts, etc.)
             this.storageClasses.backup = new k8s.storage.v1.StorageClass(`${prefix}${name}-backup`, {
@@ -314,12 +323,12 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/backup`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operator });
         }
 
         this.registerOutputs({
             namespace: this.namespace,
-            release: this.release,
+            operator: this.operator,
             storageClasses: this.storageClasses,
         });
     }

@@ -13,9 +13,9 @@ export class OpenEBS extends pulumi.ComponentResource {
     public readonly namespace: k8s.core.v1.Namespace;
 
     /**
-     * The OpenEBS release
+     * The OpenEBS operator deployment
      */
-    public readonly release: k8s.helm.v3.Release;
+    public readonly operatorDeployment: k8s.apps.v1.Deployment;
 
     /**
      * Custom storage classes created by this component
@@ -48,65 +48,105 @@ export class OpenEBS extends pulumi.ComponentResource {
             },
         }, { parent: this });
 
-        // Deploy OpenEBS using Helm
-        this.release = new k8s.helm.v3.Release(`${prefix}${name}`, {
-            chart: "openebs",
-            version: version,
-            namespace: this.namespace.metadata.name,
-            repositoryOpts: {
-                repo: "https://openebs.github.io/charts",
+        // Deploy OpenEBS operator
+        this.operatorDeployment = new k8s.apps.v1.Deployment(`${prefix}${name}-operator`, {
+            metadata: {
+                name: "openebs-operator",
+                namespace: namespace,
             },
-            values: {
-                // Global settings
-                analytics: {
-                    enabled: false,
-                },
-
-                // Node Disk Manager (NDM) settings
-                ndm: {
-                    enabled: true,
-                    sparse: {
-                        enabled: false, // Disable sparse files for production use
-                    },
-                    resources: resources.ndm,
-                },
-
-                // CSI driver settings - disabled by default as we'll use LocalPV
-                cstor: {
-                    enabled: false,
-                },
-
-                // OpenEBS Local PV Provisioner
-                localprovisioner: {
-                    enabled: true,
-                    resources: resources.localProvisioner,
-                    basePath: localStoragePath,
-                },
-
-                // OpenEBS Provisioner
-                provisioner: {
-                    enabled: true,
-                    resources: resources.provisioner,
-                },
-
-                // Helper components
-                snapshotOperator: {
-                    enabled: true, // Enable snapshot support
-                    resources: {
-                        limits: {
-                            memory: "200Mi",
-                            cpu: "100m",
-                        },
-                        requests: {
-                            memory: "100Mi",
-                            cpu: "50m",
-                        },
+            spec: {
+                replicas: 1,
+                selector: {
+                    matchLabels: {
+                        "name": "openebs-operator",
                     },
                 },
+                template: {
+                    metadata: {
+                        labels: {
+                            "name": "openebs-operator",
+                        },
+                    },
+                    spec: {
+                        serviceAccountName: "openebs-maya-operator",
+                        containers: [{
+                            name: "openebs-provisioner",
+                            image: `openebs/provisioner-localpv:${version}`,
+                            env: [{
+                                name: "NODE_NAME",
+                                valueFrom: {
+                                    fieldRef: {
+                                        fieldPath: "spec.nodeName",
+                                    },
+                                },
+                            }],
+                            resources: resources.provisioner,
+                        }, {
+                            name: "localprovisioner",
+                            image: `openebs/provisioner-localpv:${version}`,
+                            env: [{
+                                name: "NODE_NAME",
+                                valueFrom: {
+                                    fieldRef: {
+                                        fieldPath: "spec.nodeName",
+                                    },
+                                },
+                            }],
+                            resources: resources.localProvisioner,
+                        }],
+                    },
+                },
+            },
+        }, { parent: this, dependsOn: this.namespace });
 
-                // Default storage classes - we'll create our own optimized ones
-                defaultStorageConfig: {
-                    enabled: false,
+        // Create NDM daemon set
+        const ndmDaemonSet = new k8s.apps.v1.DaemonSet(`${prefix}${name}-ndm`, {
+            metadata: {
+                name: "openebs-ndm",
+                namespace: namespace,
+            },
+            spec: {
+                selector: {
+                    matchLabels: {
+                        "name": "openebs-ndm",
+                    },
+                },
+                template: {
+                    metadata: {
+                        labels: {
+                            "name": "openebs-ndm",
+                        },
+                    },
+                    spec: {
+                        serviceAccountName: "openebs-maya-operator",
+                        containers: [{
+                            name: "node-disk-manager",
+                            image: `openebs/node-disk-manager:${version}`,
+                            resources: resources.ndm,
+                            securityContext: {
+                                privileged: true,
+                            },
+                            volumeMounts: [{
+                                name: "procmount",
+                                mountPath: "/host/proc",
+                                readOnly: true,
+                            }, {
+                                name: "basepath",
+                                mountPath: localStoragePath,
+                            }],
+                        }],
+                        volumes: [{
+                            name: "procmount",
+                            hostPath: {
+                                path: "/proc",
+                            },
+                        }, {
+                            name: "basepath",
+                            hostPath: {
+                                path: localStoragePath,
+                            },
+                        }],
+                    },
                 },
             },
         }, { parent: this, dependsOn: this.namespace });
@@ -137,7 +177,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/general`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operatorDeployment });
 
             // Database-optimized storage class (for MySQL, PostgreSQL, etc.)
             this.storageClasses.database = new k8s.storage.v1.StorageClass(`${prefix}${name}-database`, {
@@ -157,7 +197,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/database`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operatorDeployment });
 
             // Cache-optimized storage class (for Redis, Memcached, etc.)
             this.storageClasses.cache = new k8s.storage.v1.StorageClass(`${prefix}${name}-cache`, {
@@ -177,7 +217,7 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/cache`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operatorDeployment });
 
             // Backup storage class (for backups, artifacts, etc.)
             this.storageClasses.backup = new k8s.storage.v1.StorageClass(`${prefix}${name}-backup`, {
@@ -197,12 +237,12 @@ export class OpenEBS extends pulumi.ComponentResource {
                     "hostpath.openebs.io/basepath": `${localStoragePath}/backup`,
                     ...(nodeSelector ? { "openebs.io/node-selector": nodeSelector } : {}),
                 },
-            }, { parent: this, dependsOn: this.release });
+            }, { parent: this, dependsOn: this.operatorDeployment });
         }
 
         this.registerOutputs({
             namespace: this.namespace,
-            release: this.release,
+            operatorDeployment: this.operatorDeployment,
             storageClasses: this.storageClasses,
         });
     }

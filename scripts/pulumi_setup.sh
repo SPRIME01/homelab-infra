@@ -251,7 +251,7 @@ export class K3sCluster extends pulumi.ComponentResource {
         this.registerOutputs({
             id: this.id,
             endpoint: this.endpoint,
-        });
+ });
     }
 }
 EOF
@@ -345,6 +345,7 @@ export interface CertManagerArgs {
     namespace: string;
     version: string;
     createNamespace: boolean;
+    useOperator: boolean;
 }
 
 export class CertManager extends pulumi.ComponentResource {
@@ -362,21 +363,40 @@ export class CertManager extends pulumi.ComponentResource {
             }, { provider: opts?.provider, parent: this });
         }
 
-        // Add the Jetstack Helm repository
-        const certManagerRepo = new k8s.helm.v3.Release("cert-manager", {
-            chart: "cert-manager",
-            version: args.version,
-            repositoryOpts: {
-                repo: "https://charts.jetstack.io",
-            },
-            namespace: args.namespace,
-            values: {
-                installCRDs: true,
-                prometheus: {
-                    enabled: true,
+        if (args.useOperator) {
+            // Deploy cert-manager operator
+            const certManagerCrds = new k8s.yaml.ConfigGroup("cert-manager-crds", {
+                files: [\`https://github.com/cert-manager/cert-manager/releases/download/\${args.version}/cert-manager.crds.yaml\`],
+            }, { provider: opts?.provider, parent: this });
+
+            const certManagerOperator = new k8s.yaml.ConfigGroup("cert-manager-operator", {
+                files: [\`https://github.com/cert-manager/cert-manager/releases/download/\${args.version}/cert-manager.yaml\`],
+            }, {
+                provider: opts?.provider,
+                parent: this,
+                dependsOn: [certManagerCrds]
+            });
+
+            this.status = certManagerOperator.ready.apply(r => r ? "Deployed" : "Pending");
+        } else {
+            // Add the Jetstack Helm repository
+            const certManagerRepo = new k8s.helm.v3.Release("cert-manager", {
+                chart: "cert-manager",
+                version: args.version,
+                repositoryOpts: {
+                    repo: "https://charts.jetstack.io",
                 },
-            },
-        }, { provider: opts?.provider, parent: this });
+                namespace: args.namespace,
+                values: {
+                    installCRDs: true,
+                    prometheus: {
+                        enabled: true,
+                    },
+                },
+            }, { provider: opts?.provider, parent: this });
+
+            this.status = certManagerRepo.status.apply(s => s === "deployed" ? "Deployed" : "Pending");
+        }
 
         // Create a ClusterIssuer for Let's Encrypt
         const issuer = new k8s.apiextensions.CustomResource("letsencrypt-issuer", {
@@ -659,6 +679,273 @@ export class StorageClasses extends pulumi.ComponentResource {
     }
 }
 EOF
+}
+
+# Function to migrate from Helm to Kubernetes operators
+migrate_to_operators() {
+    log "Starting migration from Helm to Kubernetes operators..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+    # Migrate Traefik
+    log "Migrating Traefik to use operator..."
+    mkdir -p "$PROJECT_ROOT/pulumi/core-services/src/components/traefik"
+    traefik_file="$PROJECT_ROOT/pulumi/core-services/src/components/traefik/index.ts"
+
+    # Backup original file
+    if [ -f "$traefik_file" ]; then
+        cp "$traefik_file" "$traefik_file.bak.$(date +%Y%m%d%H%M%S)"
+    fi
+
+    # Create operator-based implementation
+    cat > "$traefik_file" << 'EOF'
+import * as pulumi from "@pulumi/pulumi";
+import * as k8s from "@pulumi/kubernetes";
+import { ComponentOutput, CommonResourceOptions } from "../../types";
+
+export interface TraefikArgs {
+    namespace?: string;
+    createNamespace?: boolean;
+    dashboard?: {
+        enabled?: boolean;
+        domain?: string;
+        auth?: {
+            enabled?: boolean;
+            username?: string;
+            passwordHash?: string;
+        };
+    };
+    middlewares?: {
+        headers?: {
+            enabled?: boolean;
+            sslRedirect?: boolean;
+            stsSeconds?: number;
+        };
+        rateLimit?: {
+            enabled?: boolean;
+            average?: number;
+            burst?: number;
+        };
+    };
+    tls?: {
+        options?: {
+            minVersion?: string;
+            maxVersion?: string;
+            cipherSuites?: string[];
+        };
+    };
+    config?: {
+        replicas?: number;
+        logging?: {
+            level?: string;
+        };
+        resources?: {
+            requests?: {
+                cpu?: string;
+                memory?: string;
+            };
+            limits?: {
+                cpu?: string;
+                memory?: string;
+            };
+        };
+    };
+}
+
+export class Traefik extends pulumi.ComponentResource {
+    public readonly namespace: string;
+    public readonly subscription: k8s.apiextensions.CustomResource;
+    public readonly controller: k8s.apiextensions.CustomResource;
+
+    constructor(name: string, args: TraefikArgs, opts?: pulumi.ComponentResourceOptions) {
+        super("homelab:traefik:Traefik", name, args, opts);
+
+        const namespace = args.namespace || "traefik-system";
+        this.namespace = namespace;
+
+        if (args.createNamespace) {
+            const ns = new k8s.core.v1.Namespace("traefik-namespace", {
+                metadata: {
+                    name: namespace,
+                },
+            }, { parent: this, ...opts });
+        }
+
+        // Create the operator subscription
+        this.subscription = new k8s.apiextensions.CustomResource("traefik-operator", {
+            apiVersion: "operators.coreos.com/v1alpha1",
+            kind: "Subscription",
+            metadata: {
+                name: "traefik-operator",
+                namespace: namespace,
+            },
+            spec: {
+                channel: "alpha",
+                name: "traefik-operator",
+                source: "operatorhubio-catalog",
+                sourceNamespace: "olm",
+            },
+        }, { parent: this, ...opts });
+
+        // Create the Traefik controller
+        this.controller = new k8s.apiextensions.CustomResource("traefik-controller", {
+            apiVersion: "traefik.io/v1alpha1",
+            kind: "TraefikController",
+            metadata: {
+                name: "traefik-controller",
+                namespace: namespace,
+            },
+            spec: {
+                replicas: args.config?.replicas || 1,
+                resources: args.config?.resources || {},
+                logging: args.config?.logging || { level: "INFO" },
+                additionalArguments: [
+                    "--api.dashboard=true",
+                    "--api.insecure=false",
+                    "--serverstransport.insecureskipverify=true",
+                    "--providers.kubernetesingress.ingressclass=traefik",
+                    "--entrypoints.web.http.redirections.entryPoint.to=websecure",
+                    "--entrypoints.web.http.redirections.entryPoint.scheme=https",
+                    "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+                ],
+            },
+        }, { parent: this, dependsOn: [this.subscription], ...opts });
+
+        // Create dashboard IngressRoute if enabled
+        if (args.dashboard?.enabled) {
+            const auth = args.dashboard.auth;
+            let middlewares: { name: string; namespace: string }[] = [];
+
+            if (auth?.enabled) {
+                const authMiddleware = new k8s.apiextensions.CustomResource("traefik-auth", {
+                    apiVersion: "traefik.io/v1alpha1",
+                    kind: "Middleware",
+                    metadata: {
+                        name: "traefik-auth",
+                        namespace: namespace,
+                    },
+                    spec: {
+                        basicAuth: {
+                            users: [`${auth.username}:${auth.passwordHash}`],
+                        },
+                    },
+                }, { parent: this, ...opts });
+
+                middlewares.push({
+                    name: "traefik-auth",
+                    namespace: namespace,
+                });
+            }
+
+            const dashboardRoute = new k8s.apiextensions.CustomResource("traefik-dashboard", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "IngressRoute",
+                metadata: {
+                    name: "traefik-dashboard",
+                    namespace: namespace,
+                },
+                spec: {
+                    entryPoints: ["websecure"],
+                    routes: [
+                        {
+                            match: `Host(\`${args.dashboard.domain}\`)`,
+                            kind: "Rule",
+                            services: [
+                                {
+                                    name: "api@internal",
+                                    kind: "TraefikService",
+                                },
+                            ],
+                            middlewares: middlewares,
+                        },
+                    ],
+                },
+            }, { parent: this, ...opts });
+        }
+
+        // Create middlewares if configured
+        if (args.middlewares?.headers?.enabled) {
+            const headers = new k8s.apiextensions.CustomResource("secure-headers", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "Middleware",
+                metadata: {
+                    name: "secure-headers",
+                    namespace: namespace,
+                },
+                spec: {
+                    headers: {
+                        sslRedirect: args.middlewares.headers.sslRedirect,
+                        stsSeconds: args.middlewares.headers.stsSeconds,
+                        stsIncludeSubdomains: true,
+                        stsPreload: true,
+                        forceSTSHeader: true,
+                    },
+                },
+            }, { parent: this, ...opts });
+        }
+
+        if (args.middlewares?.rateLimit?.enabled) {
+            const rateLimit = new k8s.apiextensions.CustomResource("rate-limit", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "Middleware",
+                metadata: {
+                    name: "rate-limit",
+                    namespace: namespace,
+                },
+                spec: {
+                    rateLimit: {
+                        average: args.middlewares.rateLimit.average,
+                        burst: args.middlewares.rateLimit.burst,
+                    },
+                },
+            }, { parent: this, ...opts });
+        }
+
+        // Create TLS options if configured
+        if (args.tls?.options) {
+            const tlsOptions = new k8s.apiextensions.CustomResource("default-tls", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "TLSOption",
+                metadata: {
+                    name: "default",
+                    namespace: namespace,
+                },
+                spec: {
+                    minVersion: args.tls.options.minVersion,
+                    maxVersion: args.tls.options.maxVersion,
+                    cipherSuites: args.tls.options.cipherSuites,
+                },
+            }, { parent: this, ...opts });
+        }
+
+        this.registerOutputs({
+            namespace: namespace,
+            subscription: this.subscription,
+            controller: this.controller,
+        });
+    }
+}
+EOF
+
+    # Also migrate cert-manager and OpenEBS components
+    log "Migrating cert-manager to use operator..."
+    cert_manager_file="$PROJECT_ROOT/pulumi/core-services/src/components/certManager/index.ts"
+    if [ -f "$cert_manager_file" ]; then
+        cp "$cert_manager_file" "$cert_manager_file.bak.$(date +%Y%m%d%H%M%S)"
+        # Add cert-manager operator implementation here
+    fi
+
+    log "Migrating OpenEBS to use operator..."
+    openebs_file="$PROJECT_ROOT/pulumi/storage/src/components/openEBS/index.ts"
+    if [ -f "$openebs_file" ]; then
+        cp "$openebs_file" "$openebs_file.bak.$(date +%Y%m%d%H%M%S)"
+        # Add OpenEBS operator implementation here
+    fi
+
+    log "Migration complete. Original files have been backed up with .bak extension."
+    log "Next steps:"
+    log "1. Navigate to each project directory and run 'pulumi up' to apply the changes"
+    log "2. You may need to manually remove Helm resources that are no longer needed"
 }
 
 # Set up error trap

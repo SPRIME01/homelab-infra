@@ -23,21 +23,19 @@ export class CertManager extends pulumi.ComponentResource {
             }, { provider: opts?.provider, parent: this });
         }
 
-        // Add the Jetstack Helm repository
-        const certManagerRepo = new k8s.helm.v3.Release("cert-manager", {
-            chart: "cert-manager",
-            version: args.version,
-            repositoryOpts: {
-                repo: "https://charts.jetstack.io",
-            },
-            namespace: args.namespace,
-            values: {
-                installCRDs: true,
-                prometheus: {
-                    enabled: true,
-                },
-            },
+        // Deploy cert-manager CRDs
+        const certManagerCrds = new k8s.yaml.ConfigGroup("cert-manager-crds", {
+            files: [`https://github.com/cert-manager/cert-manager/releases/download/${args.version}/cert-manager.crds.yaml`],
         }, { provider: opts?.provider, parent: this });
+
+        // Deploy cert-manager operator
+        const certManagerOperator = new k8s.yaml.ConfigGroup("cert-manager-operator", {
+            files: [`https://github.com/cert-manager/cert-manager/releases/download/${args.version}/cert-manager.yaml`],
+        }, {
+            provider: opts?.provider,
+            parent: this,
+            dependsOn: [certManagerCrds]
+        });
 
         // Create a ClusterIssuer for Let's Encrypt
         const issuer = new k8s.apiextensions.CustomResource("letsencrypt-issuer", {
@@ -50,7 +48,7 @@ export class CertManager extends pulumi.ComponentResource {
             spec: {
                 acme: {
                     server: "https://acme-v02.api.letsencrypt.org/directory",
-                    email: "admin@example.com", // This should be configurable
+                    email: "admin@example.com",
                     privateKeySecretRef: {
                         name: "letsencrypt-prod-account-key",
                     },
@@ -66,10 +64,10 @@ export class CertManager extends pulumi.ComponentResource {
         }, {
             provider: opts?.provider,
             parent: this,
-            dependsOn: [certManagerRepo],
+            dependsOn: [certManagerOperator]
         });
 
-        this.status = pulumi.output("Deployed");
+        this.status = certManagerOperator.ready.apply(r => r ? "Deployed" : "Pending");
 
         this.registerOutputs({
             status: this.status,

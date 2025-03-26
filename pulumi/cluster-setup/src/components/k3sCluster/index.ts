@@ -42,6 +42,6 @@ export class K3sCluster extends pulumi.ComponentResource {
         this.registerOutputs({
             id: this.id,
             endpoint: this.endpoint,
-        });
+});
     }
 }

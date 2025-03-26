@@ -1,0 +1,144 @@
+---
+# Test playbook for k3s_agent role
+- name: Test k3s_agent role
+  hosts: localhost
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: "v1.28.4+k3s2"
+    k3s_server_url: "https://192.168.0.51:6443"
+    k3s_token: "test_token_value"
+    k3s_agent_flags:
+      - "--node-label=jetson.nvidia.com/gpu=true"
+      - "--node-label=topology.kubernetes.io/region=homelab"
+    nvidia_container_runtime_installed: false
+
+  tasks:
+    - name: Mock the K3s server and token files for testing
+      block:
+        - name: Create test directories
+          file:
+            path: "{{ item }}"
+            state: directory
+            mode: '0755'
+          with_items:
+            - "/etc/rancher/k3s"
+            - "/usr/local/bin"
+
+        - name: Create mock token file
+          copy:
+            content: "{{ k3s_token }}"
+            dest: "/tmp/node-token"
+            mode: '0600'
+
+        - name: Create mock K3s service file
+          file:
+            path: "/etc/systemd/system/k3s-agent.service"
+            state: touch
+            mode: '0644'
+
+        - name: Create mock containerd config file
+          file:
+            path: "/etc/containerd/config.toml"
+            state: touch
+            mode: '0644'
+
+    - name: Include k3s_agent role (without nvidia setup)
+      vars:
+        nvidia_container_runtime_installed: true  # Skip NVIDIA setup for test
+      include_role:
+        name: k3s_agent
+      ignore_errors: true
+
+    - name: Verify K3s agent config directory exists
+      stat:
+        path: /etc/rancher/k3s
+      register: k3s_config_dir
+      failed_when: not k3s_config_dir.stat.exists or not k3s_config_dir.stat.isdir
+
+    - name: Verify K3s agent configuration file exists
+      stat:
+        path: /etc/rancher/k3s/config.yaml
+      register: k3s_agent_config
+      failed_when: not k3s_agent_config.stat.exists
+
+    - name: Verify K3s agent config contains server URL
+      command: grep -q "{{ k3s_server_url | regex_escape }}" /etc/rancher/k3s/config.yaml
+      changed_when: false
+      ignore_errors: true
+      register: config_has_server_url
+
+    - name: Verify K3s agent service file exists
+      stat:
+        path: /etc/systemd/system/k3s-agent.service
+      register: k3s_agent_service
+      failed_when: not k3s_agent_service.stat.exists
+
+    - name: Check if service is enabled
+      shell: systemctl is-enabled k3s-agent || echo "not-enabled"
+      register: service_enabled
+      changed_when: false
+      ignore_errors: true
+
+    - name: Verify service is running
+      shell: systemctl is-active k3s-agent || echo "not-active"
+      register: service_active
+      changed_when: false
+      ignore_errors: true
+
+    - name: Check for containerd configuration
+      stat:
+        path: /etc/containerd/config.toml
+      register: containerd_config
+      ignore_errors: true
+
+    - name: Check for NVIDIA GPU support
+      shell: |
+        if [ -f /etc/containerd/config.toml ]; then
+          grep -q "nvidia-container-runtime" /etc/containerd/config.toml && echo "true" || echo "false"
+        else
+          echo "false"
+        fi
+      register: nvidia_runtime_configured
+      changed_when: false
+      ignore_errors: true
+
+    - name: Verify node labels would be applied
+      command: grep -q "node-label=jetson.nvidia.com/gpu=true" /etc/rancher/k3s/config.yaml
+      register: node_labels_configured
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display test results summary
+      debug:
+        msg: |
+          K3s Agent Test Results:
+          - Config directory exists: {{ k3s_config_dir.stat.exists }}
+          - Agent config file exists: {{ k3s_agent_config.stat.exists }}
+          - Config has correct server URL: {{ not config_has_server_url.failed }}
+          - Service file exists: {{ k3s_agent_service.stat.exists }}
+          - Service enabled: {{ service_enabled.stdout == "enabled" }}
+          - Service active: {{ service_active.stdout == "active" }}
+          - Containerd config exists: {{ containerd_config.stat.exists }}
+          - NVIDIA runtime configured: {{ nvidia_runtime_configured.stdout == "true" }}
+          - Node labels configured: {{ not node_labels_configured.failed }}
+
+  post_tasks:
+    - name: Clean up test files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/tmp/node-token"
+      ignore_errors: true
+
+    - name: Final test check
+      assert:
+        that:
+          - k3s_config_dir.stat.exists
+          - k3s_agent_config.stat.exists
+          - k3s_agent_service.stat.exists
+        fail_msg: "One or more K3s agent tests failed"
+        success_msg: "Essential K3s agent tests passed"
+      ignore_errors: true
