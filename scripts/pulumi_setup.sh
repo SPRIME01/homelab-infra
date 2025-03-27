@@ -951,9 +951,19 @@ EOF
 # Set up error trap
 trap handle_error ERR
 
-# Check for --cleanup flag
+# Check for command line arguments
 if [ "$1" == "--cleanup" ]; then
     cleanup
+    exit 0
+elif [ "$1" == "--migrate-to-operators" ]; then
+    migrate_to_operators
+    exit 0
+elif [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+    echo "Usage: $0 [--cleanup|--migrate-to-operators|--help]"
+    echo ""
+    echo "  --cleanup               Remove any partial installations"
+    echo "  --migrate-to-operators  Migrate from Helm charts to Kubernetes operators"
+    echo "  --help                  Show this help message"
     exit 0
 fi
 

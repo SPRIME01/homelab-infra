@@ -51,10 +51,16 @@ export interface TraefikArgs {
 }
 
 export class Traefik extends pulumi.ComponentResource {
+    public readonly namespace: string;
+    public readonly subscription: k8s.apiextensions.CustomResource;
+    public readonly controller: k8s.apiextensions.CustomResource;
+    public readonly middlewares: {[key: string]: k8s.apiextensions.CustomResource} = {};
+
     constructor(name: string, args: TraefikArgs, opts?: pulumi.ComponentResourceOptions) {
         super("homelab:traefik:Traefik", name, args, opts);
 
         const namespace = args.namespace || "traefik-system";
+        this.namespace = namespace;
 
         if (args.createNamespace) {
             const ns = new k8s.core.v1.Namespace("traefik-namespace", {
@@ -65,7 +71,7 @@ export class Traefik extends pulumi.ComponentResource {
         }
 
         // Create the operator subscription
-        const subscription = new k8s.apiextensions.CustomResource("traefik-operator", {
+        this.subscription = new k8s.apiextensions.CustomResource("traefik-operator", {
             apiVersion: "operators.coreos.com/v1alpha1",
             kind: "Subscription",
             metadata: {
@@ -81,7 +87,8 @@ export class Traefik extends pulumi.ComponentResource {
         }, { parent: this, ...opts });
 
         // Create the Traefik controller
-        const controller = new k8s.apiextensions.CustomResource("traefik-controller", {
+        // Note: The TraefikController CR expects properties directly under spec, not in a nested config object
+        this.controller = new k8s.apiextensions.CustomResource("traefik-controller", {
             apiVersion: "traefik.io/v1alpha1",
             kind: "TraefikController",
             metadata: {
@@ -89,9 +96,29 @@ export class Traefik extends pulumi.ComponentResource {
                 namespace: namespace,
             },
             spec: {
-                config: args.config || {},
+                replicas: args.config?.replicas || 1,
+                resources: args.config?.resources || {
+                    requests: {
+                        cpu: "100m",
+                        memory: "128Mi"
+                    },
+                    limits: {
+                        cpu: "300m",
+                        memory: "256Mi"
+                    }
+                },
+                logging: args.config?.logging || { level: "INFO" },
+                additionalArguments: [
+                    "--api.dashboard=true",
+                    "--api.insecure=false",
+                    "--serverstransport.insecureskipverify=true",
+                    "--providers.kubernetesingress.ingressclass=traefik",
+                    "--entrypoints.web.http.redirections.entryPoint.to=websecure",
+                    "--entrypoints.web.http.redirections.entryPoint.scheme=https",
+                    "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+                ],
             },
-        }, { parent: this, ...opts });
+        }, { parent: this, dependsOn: [this.subscription], ...opts });
 
         // Create dashboard IngressRoute if enabled
         if (args.dashboard?.enabled) {
@@ -99,7 +126,7 @@ export class Traefik extends pulumi.ComponentResource {
             let middlewares: { name: string; namespace: string }[] = [];
 
             if (auth?.enabled) {
-                const authMiddleware = new k8s.apiextensions.CustomResource("traefik-auth", {
+                this.middlewares["auth"] = new k8s.apiextensions.CustomResource("traefik-auth", {
                     apiVersion: "traefik.io/v1alpha1",
                     kind: "Middleware",
                     metadata: {
@@ -142,12 +169,12 @@ export class Traefik extends pulumi.ComponentResource {
                         },
                     ],
                 },
-            }, { parent: this, ...opts });
+            }, { parent: this, dependsOn: Object.values(this.middlewares), ...opts });
         }
 
         // Create middlewares if configured
         if (args.middlewares?.headers?.enabled) {
-            const headers = new k8s.apiextensions.CustomResource("secure-headers", {
+            this.middlewares["headers"] = new k8s.apiextensions.CustomResource("secure-headers", {
                 apiVersion: "traefik.io/v1alpha1",
                 kind: "Middleware",
                 metadata: {
@@ -167,7 +194,7 @@ export class Traefik extends pulumi.ComponentResource {
         }
 
         if (args.middlewares?.rateLimit?.enabled) {
-            const rateLimit = new k8s.apiextensions.CustomResource("rate-limit", {
+            this.middlewares["rateLimit"] = new k8s.apiextensions.CustomResource("rate-limit", {
                 apiVersion: "traefik.io/v1alpha1",
                 kind: "Middleware",
                 metadata: {
@@ -201,7 +228,10 @@ export class Traefik extends pulumi.ComponentResource {
         }
 
         this.registerOutputs({
-            namespace: namespace,
+            namespace: this.namespace,
+            subscription: this.subscription,
+            controller: this.controller,
+            middlewares: this.middlewares,
         });
     }
 }

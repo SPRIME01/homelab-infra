@@ -1,138 +1,163 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
-import { ComponentOutput, CommonResourceOptions } from "../../types";
+import { TraefikArgs, TraefikStatus } from "./types";
+import {
+    DEFAULT_NAMESPACE,
+    DEFAULT_ARGUMENTS,
+    DEFAULT_TLS_CIPHER_SUITES,
+    OPERATOR_CONFIG
+} from "./constants";
+import {
+    createMiddlewares,
+    mergeResourceConfig,
+    createAuthMiddleware,
+    validateLogging
+} from "./helpers";
 
-export interface TraefikArgs {
-    namespace: string;
-    version: string;
-    createNamespace: boolean;
-    email: pulumi.Input<string>;
-}
-
+/**
+ * Traefik is a modern reverse proxy and load balancer that integrates with your existing infrastructure.
+ * This implementation uses the Kubernetes operator pattern for better lifecycle management and native integration.
+ */
 export class Traefik extends pulumi.ComponentResource {
-    public readonly endpoint: pulumi.Output<string>;
+    public readonly namespace: string;
+    public readonly subscription: k8s.apiextensions.CustomResource;
+    public readonly controller: k8s.apiextensions.CustomResource;
+    public readonly middlewares: {[key: string]: k8s.apiextensions.CustomResource} = {};
 
-    constructor(name: string, args: TraefikArgs, opts?: CommonResourceOptions) {
-        super("homelab:core:Traefik", name, {}, opts);
+    constructor(name: string, args: TraefikArgs, opts?: pulumi.ComponentResourceOptions) {
+        super("homelab:traefik:Traefik", name, args, opts);
+
+        // Initialize core configuration
+        const namespace = args.namespace || DEFAULT_NAMESPACE;
+        this.namespace = namespace;
 
         // Create namespace if requested
         if (args.createNamespace) {
-            const ns = new k8s.core.v1.Namespace("traefik-ns", {
+            const ns = new k8s.core.v1.Namespace("traefik-namespace", {
                 metadata: {
-                    name: args.namespace,
+                    name: namespace,
                 },
-            }, { provider: opts?.provider, parent: this });
+            }, { parent: this, ...opts });
         }
 
-        // Create ServiceAccount
-        const serviceAccount = new k8s.core.v1.ServiceAccount("traefik-account", {
+        // Create the operator subscription
+        this.subscription = new k8s.apiextensions.CustomResource("traefik-operator", {
+            apiVersion: "operators.coreos.com/v1alpha1",
+            kind: "Subscription",
             metadata: {
-                name: "traefik",
-                namespace: args.namespace,
-            },
-        }, { provider: opts?.provider, parent: this });
-
-        // Create ClusterRole
-        const clusterRole = new k8s.rbac.v1.ClusterRole("traefik-role", {
-            metadata: {
-                name: "traefik",
-            },
-            rules: [
-                {
-                    apiGroups: [""],
-                    resources: ["services", "endpoints", "secrets"],
-                    verbs: ["get", "list", "watch"],
-                },
-                {
-                    apiGroups: ["extensions", "networking.k8s.io"],
-                    resources: ["ingresses", "ingressclasses"],
-                    verbs: ["get", "list", "watch"],
-                },
-            ],
-        }, { provider: opts?.provider, parent: this });
-
-        // Create ClusterRoleBinding
-        const clusterRoleBinding = new k8s.rbac.v1.ClusterRoleBinding("traefik-role-binding", {
-            metadata: {
-                name: "traefik",
-            },
-            roleRef: {
-                apiGroup: "rbac.authorization.k8s.io",
-                kind: "ClusterRole",
-                name: clusterRole.metadata.name,
-            },
-            subjects: [{
-                kind: "ServiceAccount",
-                name: serviceAccount.metadata.name,
-                namespace: args.namespace,
-            }],
-        }, { provider: opts?.provider, parent: this });
-
-        // Create Deployment
-        const deployment = new k8s.apps.v1.Deployment("traefik", {
-            metadata: {
-                name: "traefik",
-                namespace: args.namespace,
+                name: "traefik-operator",
+                namespace: namespace,
             },
             spec: {
-                replicas: 2,
-                selector: {
-                    matchLabels: {
-                        app: "traefik",
-                    },
-                },
-                template: {
-                    metadata: {
-                        labels: {
-                            app: "traefik",
-                        },
-                    },
-                    spec: {
-                        serviceAccountName: serviceAccount.metadata.name,
-                        containers: [{
-                            name: "traefik",
-                            image: pulumi.interpolate`traefik:${args.version}`,
-                            args: [
-                                "--log.level=INFO",
-                                "--providers.kubernetesingress.ingressclass=traefik",
-                                "--entrypoints.web.http.redirections.entryPoint.to=websecure",
-                                "--entrypoints.web.http.redirections.entryPoint.scheme=https",
-                            ],
-                            ports: [
-                                { name: "web", containerPort: 80 },
-                                { name: "websecure", containerPort: 443 },
-                                { name: "admin", containerPort: 8080 },
-                            ],
-                        }],
-                    },
-                },
+                channel: OPERATOR_CONFIG.channel,
+                name: "traefik-operator",
+                source: OPERATOR_CONFIG.source,
+                sourceNamespace: OPERATOR_CONFIG.sourceNamespace,
             },
-        }, { provider: opts?.provider, parent: this });
+        }, { parent: this, ...opts });
 
-        // Create Service
-        const service = new k8s.core.v1.Service("traefik", {
+        // Create the Traefik controller with validated configuration
+        this.controller = new k8s.apiextensions.CustomResource("traefik-controller", {
+            apiVersion: "traefik.io/v1alpha1",
+            kind: "TraefikController",
             metadata: {
-                name: "traefik",
-                namespace: args.namespace,
+                name: "traefik-controller",
+                namespace: namespace,
             },
             spec: {
-                type: "LoadBalancer",
-                selector: {
-                    app: "traefik",
-                },
-                ports: [
-                    { port: 80, name: "web", targetPort: "web" },
-                    { port: 443, name: "websecure", targetPort: "websecure" },
-                    { port: 8080, name: "admin", targetPort: "admin" },
-                ],
+                replicas: args.replicas || 1,
+                resources: mergeResourceConfig(args.resources),
+                logging: validateLogging(args.logging?.level),
+                additionalArguments: DEFAULT_ARGUMENTS,
             },
-        }, { provider: opts?.provider, parent: this });
+        }, { parent: this, dependsOn: [this.subscription], ...opts });
 
-        // Extract the endpoint
-        this.endpoint = service.status.loadBalancer.ingress[0].ip;
-
-        this.registerOutputs({
-            endpoint: this.endpoint,
+        // Set up middlewares
+        const middlewares = createMiddlewares(namespace, args.middlewares, {
+            parent: this,
+            ...opts
         });
+        Object.assign(this.middlewares, middlewares);
+
+        // Configure dashboard if enabled
+        if (args.dashboard?.enabled) {
+            const auth = args.dashboard.auth;
+            let dashboardMiddlewares: { name: string; namespace: string }[] = [];
+
+            // Set up authentication if configured
+            if (auth?.enabled) {
+                const authMiddleware = createAuthMiddleware(
+                    namespace,
+                    auth.username,
+                    auth.passwordHash,
+                    { parent: this, ...opts }
+                );
+
+                if (authMiddleware) {
+                    this.middlewares["auth"] = authMiddleware;
+                    dashboardMiddlewares.push({
+                        name: "traefik-auth",
+                        namespace: namespace,
+                    });
+                }
+            }
+
+            // Create dashboard IngressRoute
+            const dashboardRoute = new k8s.apiextensions.CustomResource("traefik-dashboard", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "IngressRoute",
+                metadata: {
+                    name: "traefik-dashboard",
+                    namespace: namespace,
+                },
+                spec: {
+                    entryPoints: ["websecure"],
+                    routes: [
+                        {
+                            match: `Host(\`${args.dashboard.domain}\`)`,
+                            kind: "Rule",
+                            services: [
+                                {
+                                    name: "api@internal",
+                                    kind: "TraefikService",
+                                },
+                            ],
+                            middlewares: dashboardMiddlewares,
+                        },
+                    ],
+                },
+            }, {
+                parent: this,
+                dependsOn: [...Object.values(this.middlewares)],
+                ...opts
+            });
+        }
+
+        // Configure TLS options if provided
+        if (args.tls?.options) {
+            const tlsOptions = new k8s.apiextensions.CustomResource("default-tls", {
+                apiVersion: "traefik.io/v1alpha1",
+                kind: "TLSOption",
+                metadata: {
+                    name: "default",
+                    namespace: namespace,
+                },
+                spec: {
+                    minVersion: args.tls.options.minVersion || "VersionTLS12",
+                    maxVersion: args.tls.options.maxVersion,
+                    cipherSuites: args.tls.options.cipherSuites || DEFAULT_TLS_CIPHER_SUITES,
+                },
+            }, { parent: this, ...opts });
+        }
+
+        // Register all outputs
+        const outputs: TraefikStatus = {
+            namespace: this.namespace,
+            subscription: this.subscription,
+            controller: this.controller,
+            middlewares: this.middlewares,
+        };
+
+        this.registerOutputs(outputs);
     }
 }
