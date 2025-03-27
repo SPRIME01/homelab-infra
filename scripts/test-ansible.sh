@@ -284,10 +284,14 @@ function test_role() {
 
         # Add options based on script parameters
         local ansible_opts=(--check --connection=local)
-        
-        # Add become=false to avoid sudo password prompts during tests
-        ansible_opts+=(--extra-vars "ansible_become=false")
-        
+
+        # Allow become for roles that require it
+        if [[ "${ROLE}" == "jetson_setup" ]]; then
+            ansible_opts+=(--become)
+        else
+            ansible_opts+=(--extra-vars "ansible_become=false")
+        fi
+
         # Set verbosity
         if [ $VERBOSE -eq 1 ]; then
             ansible_opts+=(-v)

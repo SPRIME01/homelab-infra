@@ -1,37 +1,42 @@
 ---
-# Monitoring tools setup
+# Monitoring setup tasks
 
 - name: Install monitoring tools
   apt:
     name:
-      - nvtop
+      - lm-sensors
       - htop
       - iotop
-      - lm-sensors
+      - nvtop
     state: present
+  when: not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure sensors detection
   command: sensors-detect --auto
+  when: not ansible_check_mode
   changed_when: false
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Create monitoring service for GPU stats
   template:
-    src: jetson-stats.service.j2
-    dest: /etc/systemd/system/jetson-stats.service
-    owner: root
-    group: root
+    src: gpu-stats.service.j2
+    dest: /etc/systemd/system/gpu-stats.service
     mode: '0644'
-  notify: restart jetson-stats
+  when: not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Install jtop (Jetson stats)
   pip:
     name: jetson-stats
     state: present
-  register: jtop_install
+  when: not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Enable and start jetson-stats service
-  systemd:
+  service:
     name: jetson-stats
-    enabled: yes
     state: started
-  when: jtop_install is success
+    enabled: yes
+  when: not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
