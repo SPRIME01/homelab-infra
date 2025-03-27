@@ -1,14 +1,16 @@
 ---
 # Power optimization tasks
-
 - name: Check current power mode
-  shell: nvpmodel -q | grep -oP "(?<=NV Power Mode: )[A-Z0-9]+"
+  ansible.builtin.shell: |
+    nvpmodel -q | grep -oP '(?<=NV Power Mode: )[A-Z0-9]+'
   register: current_power_mode
   changed_when: false
+  when: not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Set power mode
-  command: nvpmodel -m {{ power_mode_map[jetson_power_mode] }}
-  when: current_power_mode.stdout != jetson_power_mode
+  ansible.builtin.command: nvpmodel -m {{ power_mode_map[jetson_power_mode] }}
+  when: not ansible_check_mode and current_power_mode is defined and current_power_mode.stdout != jetson_power_mode
   vars:
     power_mode_map:
       MAXN: 0
@@ -17,27 +19,32 @@
       20W: 3
       15W: 4
       10W: 5
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Check if fan control is enabled
-  stat:
+  ansible.builtin.stat:
     path: /sys/devices/pwm-fan/temp_control
   register: fan_control_file
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Enable fan control
-  copy:
+  ansible.builtin.copy:
     content: "1"
     dest: /sys/devices/pwm-fan/temp_control
-  when: fan_control_file.stat.exists
+  when: not ansible_check_mode and fan_control_file.stat.exists
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure CPU governor
-  copy:
+  ansible.builtin.copy:
     content: "performance"
     dest: "/sys/devices/system/cpu/cpu{{ item }}/cpufreq/scaling_governor"
-  with_sequence: count={{ ansible_processor_cores }}
-  when: jetson_power_mode == "MAXN"
+  with_sequence: count={{ ansible_processor_cores | default(1) }}
+  when: not ansible_check_mode and jetson_power_mode == "MAXN" and ansible_processor_cores is defined
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure GPU frequency (maximum performance)
-  shell: |
+  ansible.builtin.shell: |
     echo 1 > /sys/devices/gpu.0/force_idle
     echo 1 > /sys/devices/gpu.0/railgate_enable
-  when: jetson_power_mode == "MAXN"
+  when: not ansible_check_mode and jetson_power_mode == "MAXN"
+  ignore_errors: "{{ ansible_check_mode }}"

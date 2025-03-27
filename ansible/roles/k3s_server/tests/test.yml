@@ -2,8 +2,12 @@
 # Test playbook for k3s_server role
 - name: Test k3s_server role
   hosts: localhost
-  become: true
+  connection: local
+  become: false
   gather_facts: true
+
+  roles:
+    - role: ../../../roles/k3s_server
 
   vars:
     k3s_version: "v1.26.6+k3s1"

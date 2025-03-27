@@ -6,16 +6,16 @@
 
   pre_tasks:
     - name: Check connectivity to all nodes
-      ping:
+      ansible.builtin.ping:
       register: ping_result
 
     - name: Verify all nodes are reachable
-      debug:
+      ansible.builtin.debug:
         msg: "Node {{ inventory_hostname }} is reachable"
       when: ping_result is success
 
     - name: Check system information
-      setup:
+      ansible.builtin.setup:
         gather_subset:
           - min
 
@@ -25,7 +25,7 @@
 
   post_tasks:
     - name: Verify base configuration
-      debug:
+      ansible.builtin.debug:
         msg: "Common configuration applied to {{ inventory_hostname }}"
 
 - name: Configure K3s Control Nodes
@@ -40,18 +40,19 @@
     - name: Install Operator Lifecycle Manager (OLM)
       block:
         - name: Download OLM installer script
-          get_url:
+          ansible.builtin.get_url:
             url: https://raw.githubusercontent.com/operator-framework/operator-lifecycle-manager/master/deploy/upstream/quickstart/install.sh
             dest: /tmp/install-olm.sh
             mode: '0755'
 
         - name: Execute OLM installation
-          command: /tmp/install-olm.sh
+          ansible.builtin.command: /tmp/install-olm.sh
           register: olm_install
           changed_when: olm_install.rc == 0
+          failed_when: olm_install.rc != 0
 
         - name: Wait for OLM deployments to be ready
-          k8s_info:
+          kubernetes.core.k8s_info:
             api_version: apps/v1
             kind: Deployment
             namespace: olm
@@ -60,7 +61,7 @@
           register: olm_deployments
 
     - name: Install cert-manager operator
-      k8s:
+      kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: operators.coreos.com/v1alpha1
@@ -75,7 +76,7 @@
             sourceNamespace: olm
 
     - name: Install Traefik operator
-      k8s:
+      kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: operators.coreos.com/v1alpha1
@@ -93,20 +94,20 @@
     - name: Verify K3s Server and Operator Installation
       block:
         - name: Check K3s configuration
-          command: k3s check-config
+          ansible.builtin.command: k3s check-config
           register: k3s_check
           changed_when: false
-          ignore_errors: true
+          failed_when: k3s_check.rc not in [0, 1]
 
         - name: Verify operator installations
-          k8s_info:
+          kubernetes.core.k8s_info:
             api_version: operators.coreos.com/v1alpha1
             kind: ClusterServiceVersion
             namespace: operators
           register: installed_operators
 
         - name: Report K3s and Operator Status
-          debug:
+          ansible.builtin.debug:
             msg: "K3s server and operators configured on {{ inventory_hostname }}"
 
 - name: Configure AI Nodes
@@ -121,7 +122,7 @@
 
   post_tasks:
     - name: Verify AI Node Setup
-      debug:
+      ansible.builtin.debug:
         msg: "AI node configuration completed on {{ inventory_hostname }}"
 
 - name: Configure Home Automation Nodes
@@ -134,7 +135,7 @@
 
   post_tasks:
     - name: Verify Home Automation Setup
-      debug:
+      ansible.builtin.debug:
         msg: "Home automation integration completed on {{ inventory_hostname }}"
 
 - name: Finalize All Node Setup
@@ -144,20 +145,20 @@
 
   tasks:
     - name: Verify all services are running
-      command: systemctl is-system-running
+      ansible.builtin.command: systemctl is-system-running
       register: system_status
       changed_when: false
-      ignore_errors: true
+      failed_when: system_status.rc not in [0, 1]
 
     - name: Verify operator health
-      k8s_info:
+      kubernetes.core.k8s_info:
         api_version: operators.coreos.com/v1alpha1
         kind: ClusterServiceVersion
         namespace: operators
       register: operator_status
       when: "'control_nodes' in group_names"
-      ignore_errors: true
+      failed_when: false
 
     - name: Report final status
-      debug:
+      ansible.builtin.debug:
         msg: "Initial setup completed on {{ inventory_hostname }} - System status: {{ system_status.stdout }} {% if 'control_nodes' in group_names %}- Operators status: {{ operator_status.resources | length }} operators installed{% endif %}"

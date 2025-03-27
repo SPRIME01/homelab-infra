@@ -3,16 +3,19 @@
   service:
     name: chrony
     state: restarted
-  when: ansible_os_family == "Debian"
+  when: ansible_os_family == "Debian" and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: restart ssh
   service:
     name: sshd
     state: restarted
-  when: ansible_os_family == "Debian"
+  when: ansible_os_family == "Debian" and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: restart ufw
   service:
     name: ufw
     state: restarted
-  when: ansible_os_family == "Debian"
+  when: ansible_os_family == "Debian" and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"

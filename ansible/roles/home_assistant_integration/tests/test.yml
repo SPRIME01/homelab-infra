@@ -1,0 +1,10 @@
+---
+- name: Test home_assistant_integration role
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Include home_assistant_integration role
+      include_role:
+        name: ../../../roles/home_assistant_integration

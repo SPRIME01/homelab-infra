@@ -1,9 +1,10 @@
 ---
 - name: Install NTP
   apt:
-    name: chrony
+    name: "{{ common_ntp_package }}"
     state: present
   when: ansible_os_family == "Debian"
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure chrony
   template:
@@ -14,10 +15,12 @@
     mode: '0644'
   notify: restart chrony
   when: ansible_os_family == "Debian"
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Enable and start chrony service
   service:
-    name: chrony
+    name: "{{ common_ntp_service }}"
     state: started
     enabled: yes
-  when: ansible_os_family == "Debian"
+  when: ansible_os_family == "Debian" and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"

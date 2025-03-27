@@ -16,10 +16,11 @@
     trusted_users:
       - "{{ ansible_user }}"
     home_assistant: "{{ 'homeassistant' in group_names }}"
+  strategy: linear
 
   tasks:
     - name: Create .ssh directory on control node
-      file:
+      ansible.builtin.file:
         path: "~/.ssh"
         state: directory
         mode: '0700'
@@ -28,7 +29,7 @@
       run_once: true
 
     - name: Generate SSH key on control node if it doesn't exist
-      openssh_keypair:
+      community.crypto.openssh_keypair:
         path: "{{ ssh_key_path }}"
         type: "{{ ssh_key_type }}"
         size: "{{ ssh_key_bits }}"
@@ -39,25 +40,25 @@
       run_once: true
 
     - name: Get SSH key content
-      command: "cat {{ ssh_key_path }}.pub"
+      ansible.builtin.slurp:
+        src: "{{ ssh_key_path }}.pub"
       register: ssh_pubkey_content
-      changed_when: false
       delegate_to: localhost
       become: false
       run_once: true
 
     - name: Set facts for SSH configuration
-      set_fact:
-        ssh_pubkey: "{{ ssh_pubkey_content.stdout }}"
+      ansible.builtin.set_fact:
+        ssh_pubkey: "{{ ssh_pubkey_content['content'] | b64decode }}"
 
     - name: Install SSH server
-      package:
+      ansible.builtin.package:
         name: openssh-server
         state: present
       when: not home_assistant
 
     - name: Create .ssh directory for each user
-      file:
+      ansible.builtin.file:
         path: "/home/{{ item }}/.ssh"
         state: directory
         mode: '0700'
@@ -66,14 +67,17 @@
       loop: "{{ trusted_users }}"
       when: not home_assistant
 
-    # Home Assistant specific setup
-    - name: Ensure SSH is enabled on Home Assistant
-      command: ha ssh
+    - name: Enable SSH on Home Assistant
+      ansible.builtin.command: ha ssh
+      register: ha_ssh_result
       when: home_assistant
-      ignore_errors: true
+      changed_when: ha_ssh_result.rc == 0
+      failed_when:
+        - ha_ssh_result.rc != 0
+        - "'already enabled' not in ha_ssh_result.stderr"
 
     - name: Create SSH directory on Home Assistant
-      file:
+      ansible.builtin.file:
         path: "/home/{{ ansible_user }}/.ssh"
         state: directory
         mode: '0700'
@@ -81,17 +85,15 @@
         group: "{{ ansible_user }}"
       when: home_assistant
 
-    # Setup authorized_keys for all systems
     - name: Set up authorized_keys for trusted users
-      authorized_key:
+      ansible.posix.authorized_key:
         user: "{{ item }}"
         key: "{{ ssh_pubkey }}"
         state: present
       loop: "{{ trusted_users }}"
 
-    # SSH hardening configuration
     - name: Configure SSH hardening (Ubuntu systems)
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: "{{ ssh_config_path }}"
         regexp: "{{ item.regexp }}"
         line: "{{ item.line }}"
@@ -109,7 +111,7 @@
       notify: Restart SSH
 
     - name: Configure SSH custom port (if not default)
-      lineinfile:
+      ansible.builtin.lineinfile:
         path: "{{ ssh_config_path }}"
         regexp: '^#?Port '
         line: "Port {{ ssh_port }}"
@@ -117,39 +119,38 @@
       when: ssh_port != 22 and not home_assistant
       notify: Restart SSH
 
-    # Host keys setup for known_hosts
     - name: Fetch host keys from all nodes
-      command: ssh-keyscan -p {{ ssh_port }} {{ ansible_host }}
+      ansible.builtin.command:
+        cmd: "ssh-keyscan -p {{ ssh_port }} {{ ansible_host }}"
       register: host_keys
       delegate_to: localhost
       become: false
       changed_when: false
 
     - name: Add host keys to known_hosts file
-      known_hosts:
+      ansible.builtin.known_hosts:
         path: "~/.ssh/known_hosts"
         name: "{{ ansible_host }}"
         key: "{{ host_keys.stdout }}"
         state: present
       delegate_to: localhost
       become: false
-      run_once: false
 
-    # Test SSH connectivity
     - name: Test SSH connectivity from control node to all nodes
-      shell: ssh -o BatchMode=yes -o ConnectTimeout=5 {{ ansible_user }}@{{ ansible_host }} echo "SSH connection successful"
+      ansible.builtin.command:
+        cmd: "ssh -o BatchMode=yes -o ConnectTimeout=5 {{ ansible_user }}@{{ ansible_host }} echo 'SSH connection successful'"
       register: ssh_test
       delegate_to: localhost
       become: false
-      ignore_errors: true
       changed_when: false
+      failed_when: false
 
     - name: Display SSH connectivity test results
-      debug:
+      ansible.builtin.debug:
         msg: "SSH connectivity to {{ ansible_host }}: {{ 'SUCCESS' if ssh_test.rc == 0 else 'FAILED - ' + ssh_test.stderr }}"
 
   handlers:
     - name: Restart SSH
-      service:
+      ansible.builtin.service:
         name: sshd
         state: restarted

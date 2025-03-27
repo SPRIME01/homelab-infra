@@ -1,0 +1,9 @@
+ansible>=9.0.0
+ansible-lint>=24.0.0
+netaddr>=1.0.0
+jmespath>=1.0.0
+
+[dev]
+pytest>=7.0.0
+black>=23.0.0
+isort>=5.0.0

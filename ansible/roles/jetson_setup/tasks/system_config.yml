@@ -5,15 +5,18 @@
   hostname:
     name: "{{ jetson_hostname }}"
   notify: update hosts file
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Set timezone
   community.general.timezone:
     name: "{{ jetson_timezone }}"
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Generate locale
   locale_gen:
     name: "{{ jetson_locale }}"
     state: present
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure swap
   block:
@@ -24,28 +27,33 @@
 
     - name: Create swap file
       command: dd if=/dev/zero of=/swapfile bs=1M count={{ jetson_swap_size_mb }}
-      when: not swap_file.stat.exists
+      when: not swap_file.stat.exists and not ansible_check_mode
+      ignore_errors: "{{ ansible_check_mode }}"
 
     - name: Set swap file permissions
       file:
         path: /swapfile
         mode: 0600
-      when: not swap_file.stat.exists
+      when: not swap_file.stat.exists and not ansible_check_mode
+      ignore_errors: "{{ ansible_check_mode }}"
 
     - name: Make swap
       command: mkswap /swapfile
-      when: not swap_file.stat.exists
+      when: not swap_file.stat.exists and not ansible_check_mode
+      ignore_errors: "{{ ansible_check_mode }}"
 
     - name: Enable swap
       command: swapon /swapfile
-      when: not swap_file.stat.exists
+      when: not swap_file.stat.exists and not ansible_check_mode
+      ignore_errors: "{{ ansible_check_mode }}"
 
     - name: Add swap to fstab
       lineinfile:
         path: /etc/fstab
         line: "/swapfile none swap sw 0 0"
         state: present
-      when: not swap_file.stat.exists
+      when: not swap_file.stat.exists and not ansible_check_mode
+      ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure sysctl for AI workloads
   template:

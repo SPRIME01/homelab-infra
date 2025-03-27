@@ -5,9 +5,19 @@
   gather_facts: true
 
   tasks:
+    - name: Download K3s installer
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s-installer.sh
+        mode: '0755'
+      tags:
+        - k3s
+        - k3s_server
+        - install
+
     - name: Install K3s server
-      shell: curl -sfL https://get.k3s.io | sh -
-      args:
+      ansible.builtin.command:
+        cmd: /tmp/k3s-installer.sh
         creates: /usr/local/bin/k3s
       register: k3s_server_install
       tags:
@@ -16,7 +26,7 @@
         - install
 
     - name: Wait for node-token to be generated
-      wait_for:
+      ansible.builtin.wait_for:
         path: /var/lib/rancher/k3s/server/node-token
         state: present
         delay: 5
@@ -26,7 +36,7 @@
         - k3s_server
 
     - name: Get K3s token
-      slurp:
+      ansible.builtin.slurp:
         src: /var/lib/rancher/k3s/server/node-token
       register: k3s_token
       tags:
@@ -34,14 +44,14 @@
         - k3s_server
 
     - name: Store K3s token as fact
-      set_fact:
+      ansible.builtin.set_fact:
         k3s_token: "{{ k3s_token.content | b64decode | trim }}"
       tags:
         - k3s
         - k3s_server
 
     - name: Get K3s server URL
-      set_fact:
+      ansible.builtin.set_fact:
         k3s_url: "https://{{ ansible_default_ipv4.address }}:6443"
       tags:
         - k3s
@@ -50,20 +60,20 @@
     - name: Configure kubectl on control node
       block:
         - name: Create kubectl config directory
-          file:
+          ansible.builtin.file:
             path: /root/.kube
             state: directory
             mode: '0700'
 
         - name: Copy kubeconfig to standard location
-          copy:
+          ansible.builtin.copy:
             src: /etc/rancher/k3s/k3s.yaml
             dest: /root/.kube/config
-            remote_src: yes
+            remote_src: true
             mode: '0600'
 
         - name: Update kubeconfig server address
-          replace:
+          ansible.builtin.replace:
             path: /root/.kube/config
             regexp: 'https://127.0.0.1:6443'
             replace: "{{ k3s_url }}"
@@ -73,7 +83,8 @@
         - config
 
     - name: Verify K3s server health
-      command: kubectl get nodes
+      ansible.builtin.command:
+        cmd: kubectl get nodes
       register: k3s_nodes
       changed_when: false
       tags:
@@ -86,8 +97,22 @@
   gather_facts: true
 
   tasks:
+    - name: Download K3s installer
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s-installer.sh
+        mode: '0755'
+      tags:
+        - k3s
+        - k3s_agent
+        - install
+
     - name: Install K3s agent
-      shell: curl -sfL https://get.k3s.io | K3S_URL={{ hostvars[groups['control_nodes'][0]].k3s_url }} K3S_TOKEN={{ hostvars[groups['control_nodes'][0]].k3s_token }} sh -
+      ansible.builtin.command:
+        cmd: sh /tmp/k3s-installer.sh
+      environment:
+        K3S_URL: "{{ hostvars[groups['control_nodes'][0]].k3s_url }}"
+        K3S_TOKEN: "{{ hostvars[groups['control_nodes'][0]].k3s_token }}"
       args:
         creates: /usr/local/bin/k3s-agent
       tags:
@@ -96,7 +121,7 @@
         - install
 
     - name: Wait for agent to register with cluster
-      pause:
+      ansible.builtin.pause:
         seconds: 30
       tags:
         - k3s
@@ -109,7 +134,8 @@
 
   tasks:
     - name: Verify cluster with all nodes
-      command: kubectl get nodes
+      ansible.builtin.command:
+        cmd: kubectl get nodes
       register: k3s_cluster_nodes
       changed_when: false
       tags:
@@ -117,7 +143,7 @@
         - verify
 
     - name: Display cluster nodes
-      debug:
+      ansible.builtin.debug:
         var: k3s_cluster_nodes.stdout_lines
       tags:
         - k3s
@@ -126,7 +152,7 @@
     - name: Set up persistent storage
       block:
         - name: Create local storage class yaml
-          copy:
+          ansible.builtin.copy:
             dest: /tmp/local-storage.yaml
             content: |
               apiVersion: storage.k8s.io/v1
@@ -138,7 +164,8 @@
             mode: '0644'
 
         - name: Apply local storage class
-          command: kubectl apply -f /tmp/local-storage.yaml
+          ansible.builtin.command:
+            cmd: kubectl apply -f /tmp/local-storage.yaml
           register: storage_class_result
           changed_when: "'created' in storage_class_result.stdout or 'configured' in storage_class_result.stdout"
       tags:
@@ -146,7 +173,8 @@
         - storage
 
     - name: Verify persistent volumes
-      command: kubectl get storageclasses
+      ansible.builtin.command:
+        cmd: kubectl get storageclasses
       register: storage_classes
       changed_when: false
       tags:
@@ -155,7 +183,7 @@
         - verify
 
     - name: Display storage classes
-      debug:
+      ansible.builtin.debug:
         var: storage_classes.stdout_lines
       tags:
         - k3s
@@ -163,24 +191,25 @@
         - verify
 
     - name: Verify cluster health
-      command: kubectl get componentstatuses
+      ansible.builtin.command:
+        cmd: kubectl get componentstatuses
       register: k3s_health
       changed_when: false
-      ignore_errors: true
+      failed_when: false
       tags:
         - k3s
         - verify
 
     - name: Display cluster health
-      debug:
+      ansible.builtin.debug:
         var: k3s_health.stdout_lines
-      ignore_errors: true
+      failed_when: false
       tags:
         - k3s
         - verify
 
     - name: Final verification
-      debug:
+      ansible.builtin.debug:
         msg: "K3s cluster setup completed successfully"
       tags:
         - k3s

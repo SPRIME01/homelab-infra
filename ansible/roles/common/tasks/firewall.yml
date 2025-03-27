@@ -4,19 +4,22 @@
     name: ufw
     state: present
   when: ansible_os_family == "Debian"
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure default UFW rules
   ufw:
     state: enabled
     policy: deny
     direction: incoming
-  when: ansible_os_family == "Debian" and configure_firewall | bool
+  when: ansible_os_family == "Debian" and configure_firewall | bool and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Allow SSH
   ufw:
     rule: allow
     name: OpenSSH
-  when: ansible_os_family == "Debian" and configure_firewall | bool
+  when: ansible_os_family == "Debian" and configure_firewall | bool and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure additional UFW rules
   ufw:
@@ -24,4 +27,5 @@
     port: "{{ item.port }}"
     proto: "{{ item.proto | default('tcp') }}"
   loop: "{{ ufw_rules }}"
-  when: ansible_os_family == "Debian" and configure_firewall | bool and ufw_rules is defined
+  when: ansible_os_family == "Debian" and configure_firewall | bool and ufw_rules is defined and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"

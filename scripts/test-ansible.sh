@@ -283,8 +283,11 @@ function test_role() {
         log "INFO" "Found test playbook for role: ${role}"
 
         # Add options based on script parameters
-        local ansible_opts=(--check)
-
+        local ansible_opts=(--check --connection=local)
+        
+        # Add become=false to avoid sudo password prompts during tests
+        ansible_opts+=(--extra-vars "ansible_become=false")
+        
         # Set verbosity
         if [ $VERBOSE -eq 1 ]; then
             ansible_opts+=(-v)

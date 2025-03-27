@@ -9,7 +9,7 @@
 - name: Check CUDA version if installed
   shell: nvcc --version | grep -oP "release \K[0-9]+\.[0-9]+"
   register: installed_cuda_version
-  when: cuda_installed.stat.exists
+  when: cuda_installed.stat.exists and not ansible_check_mode
   changed_when: false
   ignore_errors: true
 
@@ -20,6 +20,7 @@
     owner: root
     group: root
     mode: 0644
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Set up library paths for CUDA
   template:
@@ -29,6 +30,13 @@
     group: root
     mode: 0644
   notify: run ldconfig
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Check if NVIDIA container runtime config exists
+  stat:
+    path: /etc/nvidia-container-runtime/config.toml
+  register: nvidia_config
+  ignore_errors: true
 
 - name: Configure GPU memory allocation
   lineinfile:
@@ -36,11 +44,13 @@
     regexp: '^#?\s*"nvidia-smi"'
     line: '    "nvidia-smi" = ["-a", "--query-gpu=memory.total,memory.used,memory.free", "--format=csv,nounits,noheader"]'
     state: present
-  when: cuda_installed.stat.exists
+  when: cuda_installed.stat.exists and nvidia_config.stat.exists and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Configure NVCC alternatives
   alternatives:
     name: cuda
     link: /usr/bin/nvcc
     path: /usr/local/cuda/bin/nvcc
-  when: cuda_installed.stat.exists
+  when: cuda_installed.stat.exists and not ansible_check_mode
+  ignore_errors: "{{ ansible_check_mode }}"
