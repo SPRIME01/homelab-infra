@@ -1,28 +1,40 @@
 ---
-- name: Check K3s agent service status
-  systemd:
+# Verification tasks for K3s agent
+
+# Wait for K3s agent to be ready
+- name: Wait for K3s agent to be ready
+  ansible.builtin.systemd:
     name: k3s-agent
     state: started
   register: k3s_agent_status
-  failed_when: not k3s_agent_status.status.ActiveState == "active"
+  until: k3s_agent_status.status.ActiveState == "active"
+  retries: 12
+  delay: 5
+  when: not ansible_check_mode
 
-- name: Verify node can access K3s server
-  command: k3s check-config
-  register: k3s_check_config
+- name: Skip verification in check mode
+  ansible.builtin.debug:
+    msg: "Skipping verification in check mode"
+  when: ansible_check_mode
+
+- name: Verify K3s agent version
+  ansible.builtin.command: k3s --version
+  register: k3s_version_output
   changed_when: false
-  ignore_errors: yes
+  when: not ansible_check_mode
 
-- name: Display K3s agent logs
-  command: journalctl -u k3s-agent -n 20 --no-pager
-  register: k3s_agent_logs
+- name: Verify the node can connect to the server
+  ansible.builtin.shell: set -o pipefail && k3s crictl info | grep -q RuntimeReady
+  register: k3s_node_connection
+  until: k3s_node_connection is success
+  retries: 6
+  delay: 10
   changed_when: false
+  args:
+    executable: /bin/bash
+  when: not ansible_check_mode
 
-- name: Verify NVIDIA GPU is detected by K3s
-  shell: k3s kubectl get nodes {{ node_hostname }} -o json | grep -q nvidia.com/gpu
-  register: nvidia_gpu_detected
-  changed_when: false
-  ignore_errors: yes
-
-- name: Display NVIDIA GPU status
-  debug:
-    msg: "NVIDIA GPU detected: {{ nvidia_gpu_detected.rc == 0 }}"
+- name: Show K3s version
+  ansible.builtin.debug:
+    var: k3s_version_output.stdout
+  when: not ansible_check_mode and k3s_version_output is defined

@@ -1,50 +1,66 @@
 ---
-- name: Check if K3s agent is already installed
-  stat:
-    path: "{{ k3s_service_file }}"
-  register: k3s_agent_service
+# Check if K3s agent is already installed
+- name: Check if K3s agent is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
 
-- name: Set up NVIDIA GPU runtime prerequisites
-  import_tasks: nvidia_runtime.yml
-  when: not k3s_agent_service.stat.exists
+# Configure NVIDIA GPU runtime if needed
+- name: Include NVIDIA GPU runtime configuration
+  ansible.builtin.import_tasks: nvidia_runtime.yml
+  when: k3s_agent_nvidia_container_runtime_installed | bool
 
+# If NVIDIA GPU runtime is already set up, just update the config file
+- name: Include NVIDIA runtime override tasks
+  ansible.builtin.import_tasks: nvidia_runtime_override.yml
+  when: k3s_binary.stat.exists
+
+# Create K3s directory
 - name: Create K3s configuration directory
-  file:
-    path: "{{ k3s_config_dir }}"
+  ansible.builtin.file:
+    path: "{{ k3s_agent_config_dir }}"
     state: directory
-    mode: '0755'
-  when: not k3s_agent_service.stat.exists
+    mode: "0755"
 
-- name: Create K3s agent configuration
-  template:
+# Set up configuration
+- name: Generate K3s agent configuration
+  ansible.builtin.template:
     src: config.yaml.j2
-    dest: "{{ k3s_config_dir }}/config.yaml"
-    owner: root
-    group: root
+    dest: "{{ k3s_agent_config_dir }}/config.yaml"
     mode: '0644'
-  when: not k3s_agent_service.stat.exists
+  vars:
+    k3s_agent_node_hostname: "{{ ansible_hostname | default('test-node') }}"
+    k3s_agent_node_ip: "{{ ansible_default_ipv4.address | default('192.168.1.100') }}"
+  notify:
+    - Stop k3s-agent
+    - Start k3s-agent
+
+# Install K3s agent if not already installed
+- name: Download K3s agent installer
+  ansible.builtin.get_url:
+    url: "{{ k3s_agent_installer_url }}"
+    dest: /tmp/k3s-install.sh
+    mode: "0755"
+  when: not k3s_binary.stat.exists
 
 - name: Install K3s agent
-  shell: |
-    curl -sfL {{ k3s_installer_url }} | \
-    K3S_URL={{ k3s_server_url }} \
-    K3S_TOKEN={{ k3s_token }} \
-    sh -s - {{ k3s_agent_flags | join(' ') }} --config {{ k3s_config_dir }}/config.yaml
-  args:
-    creates: "{{ k3s_service_file }}"
-  register: k3s_agent_install
+  ansible.builtin.shell:
+    cmd: >
+      INSTALL_K3S_VERSION={{ k3s_agent_version }}
+      INSTALL_K3S_EXEC="agent"
+      K3S_URL="{{ k3s_agent_server_url }}"
+      K3S_TOKEN="{{ k3s_agent_token }}"
+      K3S_NODE_NAME="{{ k3s_agent_node_hostname }}"
+      /tmp/k3s-install.sh
+  when: not k3s_binary.stat.exists
+  notify:
+    - Restart k3s-agent
   environment:
-    INSTALL_K3S_VERSION: "{{ k3s_version }}"
-  notify: restart k3s-agent
+    INSTALL_K3S_SKIP_ENABLE: "true"
+  args:
+    executable: /bin/bash
+  changed_when: true  # Installation always counts as a change
 
-- name: Configure K3s service to start on boot
-  systemd:
-    name: k3s-agent
-    state: started
-    enabled: yes
-    daemon_reload: yes
-  when: not k3s_agent_service.stat.exists
-
+# Verify installation
 - name: Verify K3s agent installation
-  import_tasks: verify.yml
-  when: k3s_agent_install is succeeded or k3s_agent_service.stat.exists
+  ansible.builtin.import_tasks: verify.yml

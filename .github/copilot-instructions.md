@@ -1,6 +1,92 @@
 # GitHub Copilot Custom Instructions
+### Project Overview
 
-These instructions guide GitHub Copilot to generate code that adheres to best practices and architectural principles. In cases of conflict, these custom instructions take precedence over other guidelines.
+This repository defines and manages the core homelab infrastructure using Infrastructure as Code (IaC) principles.
+
+**Tech Stack:**
+- **Ansible**: Configuration management (YAML playbooks/roles)
+- **Pulumi**: Kubernetes operators and infrastructure (TypeScript)
+- **Git**: Version control with GitFlow branching
+- **Bash**: Deployment automation
+- **Pydantic**: Python data validation
+- **TypeScript**: Strong typing for infrastructure code
+- **Environment Files**: Configuration management
+
+**Key Patterns:**
+- **Idempotent Infrastructure**: Safe for repeated runs
+- **Modular Design**: Reusable Ansible roles and Pulumi components
+- **Secure Secrets**: HashiCorp Vault integration
+- **Quality Checks**: Pre-commit hooks and testing
+- **IaC Best Practices**: Version control, CI/CD integration
+- **Type Safety**: Strict typing in both Python and TypeScript
+
+**Environment:**
+- Control node: Windows 11 Pro with WSL2 (Ubuntu 22.04 LTS)
+- Authentication: SSH key-based
+- Dependencies: Documented component relationships
+
+---
+
+This repository is dedicated to the **AI/ML platform components** of the homelab. Its main goal is to facilitate local AI model serving, resource management for AI workloads, and integration with other homelab components for AI-driven functionalities.
+
+**Tech Stack:**
+
+*   **NVIDIA Triton Inference Server**: For AI model serving [10].
+*   **Ray Cluster**: For distributed resource management and scaling of AI applications [10].
+*   **Python**: Primarily used for scripts related to model optimization, deployment, and testing [11, 12].
+*   **YAML**: For configuration files related to Triton and Ray.
+*   **Home Assistant AI**: Integration components for AI functionalities within Home Assistant [13].
+*   **Git**: For version control [2]. Follow a **GitFlow-inspired branching strategy** [3].
+*   **Bash**: For setup and utility scripts [14].
+
+**Important Coding Patterns and Rules:**
+
+*   **Model Repository Structure**: Follow the expected structure for the Triton model repository [14].
+*   **Ray Application Design**: Design Ray applications for distributed execution and efficient resource utilization.
+*   **Model Optimization**: Implement pipelines for model conversion, quantization, and performance testing [11].
+*   **Home Assistant Integration**: Follow Home Assistant integration guidelines for creating custom components and services.
+*   **Testing**: Implement comprehensive tests for Triton models, Ray applications, and Home Assistant AI integrations [15].
+*   **GPU Utilization**: Optimize code and configurations to effectively utilize the GPU resources of the NVIDIA Jetson AGX Orin [8].
+*   **Docker**: Familiarity with Docker for containerizing AI models and applications.
+
+**Key Limitations:**
+
+*   Target hardware for AI/ML workloads is the **NVIDIA Jetson AGX Orin** [8]. Ensure models and applications are compatible with its architecture and capabilities.
+*   Integration with Home Assistant is a key aspect [16]. Ensure seamless communication and data exchange.
+*   Consider the resource constraints of the Jetson AGX Orin when deploying large models or complex applications.
+
+---
+
+
+
+This repository focuses on the **monitoring and observability** aspects of the homelab. Its primary goal is to provide unified collection and analysis of metrics, logs, and traces across all homelab components for effective monitoring, troubleshooting, and performance optimization.
+
+**Tech Stack:**
+
+*   **OpenTelemetry**: For unified collection of metrics, logs, and traces [10]. Use YAML for collector configurations.
+*   **Prometheus**: For metrics monitoring and alerting [17]. Use YAML for Prometheus rules.
+*   **Grafana**: For data visualization and dashboarding [18]. Use JSON for dashboard definitions.
+*   **Loki**: For log storage and aggregation [17]. Use YAML for Loki configuration.
+*   **Tempo**: For distributed tracing [19]. Use YAML for Tempo configuration.
+*   **Python** and **Node.js**: For application instrumentation libraries [20].
+*   **Git**: For version control [2]. Follow a **GitFlow-inspired branching strategy** [3].
+
+**Important Coding Patterns and Rules:**
+
+*   **OpenTelemetry Standards**: Adhere to OpenTelemetry standards for data formats and context propagation [21].
+*   **Prometheus Query Language (PromQL)**: Write efficient and accurate PromQL queries for alerting and dashboarding.
+*   **Grafana Dashboard Design**: Create clear, informative, and well-organized Grafana dashboards.
+*   **Log Aggregation and Analysis**: Configure Loki for effective log aggregation and utilize its query language (LogQL) for analysis.
+*   **Distributed Tracing Implementation**: Implement trace context propagation across services to enable end-to-end visibility.
+*   **Instrumentation Best Practices**: Follow best practices for instrumenting applications to collect relevant telemetry data.
+*   **Alerting Rules**: Define clear and actionable alerting rules in Prometheus AlertManager [17].
+
+**Key Limitations:**
+
+*   Integration with an existing **InfluxDB instance on the Home Automation Node** for time-series data [8, 22]. Ensure proper configuration for data export.
+*   Consider the performance impact of instrumentation on the monitored applications.
+*   Ensure proper configuration of network access between observability components.
+
 
 ---
 
@@ -53,16 +139,6 @@ These instructions guide GitHub Copilot to generate code that adheres to best pr
 
 ---
 
-## Plugin Architecture
-
-- Define clear plugin interfaces
-- Use dependency injection containers
-- Implement plugin discovery mechanisms
-- Support hot-reloading where applicable
-- Maintain backwards compatibility
-
----
-
 ## Function & Method Design
 
 - Keep functions small with a single responsibility
@@ -73,15 +149,16 @@ These instructions guide GitHub Copilot to generate code that adheres to best pr
 
 ---
 
-## Branch Management
-
-- Never work directly on main/master
-- Create feature branches: `git checkout -b feature/<feature-name>` using kebab-case
-- Keep features small and focused
-- Use pull requests for code reviews
-- Commit often with descriptive messages
-- Commit Message Format: - 📝 Be extremely detailed with file changes - 🤔 Explain the reasoning behind each change - 🎨 Use relevant emojis to categorize changes - Example: "✨ feat(auth): Add JWT token validation to login endpoint - 🔧 Modified: src/auth/jwt_validator.py - 📦 Added: tests/auth/test_jwt_validator.py - 🔥 Removed: old token validation logic
-  Why: Improves security by implementing industry-standard JWT validation"
+## Commit Message Format
+- 📝 Be extremely detailed with file changes
+- 🤔 Explain the reasoning behind each change
+- 🎨 Use relevant emojis to categorize changes
+- Examples:
+  - ✨ feat(auth): Add JWT token validation to login endpoint
+  - 🔧 Modified: src/auth/jwt_validator.py
+  - 📦 Added: tests/auth/test_jwt_validator.py
+  - 🔥 Removed: old token validation logic
+  - 🤔 Why: Improves security by implementing industry-standard JWT validation"
 
 ---
 

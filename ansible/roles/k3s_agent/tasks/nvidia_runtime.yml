@@ -1,60 +1,138 @@
 ---
-- name: Install required packages
-  apt:
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: not k3s_test_mode  # Skip in test mode
+
+- name: Install dependencies
+  ansible.builtin.apt:
     name:
       - apt-transport-https
       - ca-certificates
       - curl
-      - gnupg
-      - lsb-release
+      - gnupg-agent
+      - software-properties-common
     state: present
-    update_cache: yes
+    update_cache: true
+  when: not k3s_test_mode
+
+- name: Create NVIDIA Docker repository directory
+  ansible.builtin.file:
+    path: >-
+      {{ k3s_test_mode | bool | ternary(
+        k3s_agent_keyrings_dir | default('/tmp/k3s-test/etc/apt/keyrings'),
+        '/etc/apt/keyrings'
+      ) }}
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: true  # always run, destination now depends on test mode
 
 - name: Add NVIDIA Docker repository GPG key
-  apt_key:
-    url: "{{ nvidia_docker_repo_gpg_key }}"
+  ansible.builtin.apt_key:
+    url: "{{ k3s_agent_nvidia_docker_repo_gpg_key }}"
     state: present
+  register: apt_key_result
+  until: apt_key_result is success
+  retries: 3
+  delay: 5
+  when: not k3s_test_mode
+
+- name: Ensure sources directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_agent_sources_dir if k3s_test_mode else '/etc/apt/sources.list.d' }}"
+    state: directory
+    mode: '0755'
+  when: k3s_test_mode
 
 - name: Add NVIDIA Docker repository
-  get_url:
-    url: "{{ nvidia_docker_repo_url }}"
-    dest: /etc/apt/sources.list.d/nvidia-docker.list
+  ansible.builtin.copy:
+    content: |
+      deb https://nvidia.github.io/nvidia-docker/ubuntu22.04/amd64 /
+    dest: "{{ k3s_agent_sources_dir }}/nvidia-docker.list"
     mode: '0644'
+  register: repo_result
+  notify:
+    - Stop k3s-agent
+  when: k3s_test_mode
+
+- name: Add NVIDIA Docker repository (production)
+  ansible.builtin.get_url:
+    url: "{{ k3s_agent_nvidia_docker_repo_url }}"
+    dest: "/etc/apt/sources.list.d/nvidia-docker.list"
+    mode: '0644'
+  register: repo_result_prod
+  until: repo_result_prod is success
+  retries: 3
+  delay: 5
+  notify:
+    - Stop k3s-agent
+  when: not k3s_test_mode
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+  when: >
+    ((apt_key_result is defined and apt_key_result is changed) or
+     (repo_result is defined and repo_result is changed) or
+     (repo_result_prod is defined and repo_result_prod is changed))
+    and not k3s_test_mode
 
 - name: Install NVIDIA container runtime
-  apt:
+  ansible.builtin.apt:
     name:
-      - nvidia-container-toolkit
       - nvidia-container-runtime
+      - nvidia-container-toolkit
     state: present
-    update_cache: yes
-  register: nvidia_runtime_installed
+    update_cache: true
+  when: not k3s_test_mode
 
-- name: Verify NVIDIA drivers are installed
-  command: nvidia-smi
+- name: Detect NVIDIA GPU
+  ansible.builtin.command: nvidia-smi
   register: nvidia_smi_result
-  ignore_errors: yes
   changed_when: false
+  failed_when: false
+  check_mode: false
+  when: not k3s_test_mode | bool
 
-- name: Fail if NVIDIA drivers are not properly installed
-  fail:
-    msg: "NVIDIA drivers are not properly installed. Please install them before proceeding."
-  when: nvidia_smi_result.rc != 0
+- name: Fail if no NVIDIA GPU detected
+  ansible.builtin.fail:
+    msg: "No NVIDIA GPU detected. Install cannot proceed."
+  when: >
+    (nvidia_smi_result is defined and
+     nvidia_smi_result.rc is defined and
+     nvidia_smi_result.rc != 0) and
+    not ansible_check_mode and
+    not k3s_test_mode
 
-- name: Configure containerd to use NVIDIA runtime
-  template:
+- name: Create containerd config directory
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: not k3s_test_mode
+
+- name: Configure containerd with NVIDIA runtime
+  ansible.builtin.template:
     src: containerd-config.toml.j2
-    dest: /etc/containerd/config.toml
+    dest: >-
+      {{ k3s_test_mode | bool | ternary(
+        k3s_agent_containerd_dir | default('/tmp/k3s-test/etc/containerd'),
+        '/etc/containerd'
+      ) }}/config.toml
     mode: '0644'
+    owner: root
+    group: root
   register: containerd_config
+  notify:
+    - Stop k3s-agent
+    - Start k3s-agent
+  when: true
 
-- name: Restart containerd service
-  systemd:
-    name: containerd
-    state: restarted
-  when: containerd_config.changed
-
-- name: Set nvidia_container_runtime_installed flag
-  set_fact:
-    nvidia_container_runtime_installed: true
-  when: nvidia_runtime_installed.changed
+- name: Set fact that NVIDIA container runtime is installed
+  ansible.builtin.set_fact:
+    k3s_agent_nvidia_container_runtime_installed: true

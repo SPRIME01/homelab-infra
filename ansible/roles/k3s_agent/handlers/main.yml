@@ -1,16 +1,20 @@
 ---
-- name: restart k3s-agent
-  systemd:
+- name: Restart k3s-agent
+  ansible.builtin.systemd:
     name: k3s-agent
     state: restarted
-    daemon_reload: yes
+    daemon_reload: true
+  when: not k3s_test_mode
 
-- name: stop k3s-agent
-  systemd:
+- name: Stop k3s-agent
+  ansible.builtin.systemd:
     name: k3s-agent
     state: stopped
+  when: not k3s_test_mode
 
-- name: start k3s-agent
-  systemd:
+- name: Start k3s-agent
+  ansible.builtin.systemd:
     name: k3s-agent
     state: started
+    enabled: true
+  when: not k3s_test_mode

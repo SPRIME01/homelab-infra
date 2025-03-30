@@ -5,6 +5,11 @@
   apt_key:
     url: "{{ nvidia_docker_repo_gpg_key }}"
     state: present
+    validate_certs: no
+  register: gpg_result
+  retries: 3
+  delay: 5
+  until: gpg_result is not failed
   when: nvidia_container_runtime and not ansible_check_mode
   ignore_errors: "{{ ansible_check_mode }}"
 
@@ -13,6 +18,11 @@
     url: "{{ nvidia_docker_repo_url }}"
     dest: /etc/apt/sources.list.d/nvidia-docker.list
     mode: '0644'
+    validate_certs: no
+  register: repo_result
+  retries: 3
+  delay: 5
+  until: repo_result is not failed
   when: nvidia_container_runtime and not ansible_check_mode
   ignore_errors: "{{ ansible_check_mode }}"
 

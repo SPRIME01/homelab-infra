@@ -3,13 +3,13 @@ import * as k8s from "@pulumi/kubernetes";
 import { Traefik } from '../';
 import { TraefikArgs } from '..//types';
 import { DEFAULT_NAMESPACE, DEFAULT_RESOURCES, DEFAULT_ARGUMENTS } from '../constants';
-import { 
-    MockCall, 
+import {
+    MockCall,
     MockFn,
-    setupPulumiMocks, 
-    setupMockCustomResource, 
+    setupPulumiMocks,
+    setupMockCustomResource,
     findResourceInCalls,
-    createTestArgs 
+    createTestArgs
 } from './utils';
 
 describe('Traefik', () => {

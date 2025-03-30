@@ -2,13 +2,13 @@ import { describe, test, expect, beforeAll, beforeEach, afterEach, jest } from '
 import * as k8s from "@pulumi/kubernetes";
 import { Traefik } from '../';
 import { DEFAULT_NAMESPACE } from '../constants';
-import { 
+import {
     MockCall,
     MockFn,
-    setupPulumiMocks, 
-    setupMockCustomResource, 
+    setupPulumiMocks,
+    setupMockCustomResource,
     findResourceInCalls,
-    createTestArgs 
+    createTestArgs
 } from './utils';
 
 describe('Traefik Integration', () => {

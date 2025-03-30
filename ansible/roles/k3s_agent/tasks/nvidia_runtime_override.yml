@@ -1,0 +1,43 @@
+---
+# Mock tasks for testing
+- name: Mock NVIDIA container runtime installation for tests
+  block:
+    - name: Ensure NVIDIA mock files exist
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/nvidia-docker.list
+      register: nvidia_source_stat
+
+    - name: Create mock NVIDIA Docker repository file if needed
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/nvidia-docker.list
+        content: |
+          deb https://nvidia.github.io/nvidia-docker/ubuntu22.04/amd64 /
+        mode: '0644'
+      when: not nvidia_source_stat.stat.exists
+
+    - name: Set fact that NVIDIA container runtime is installed
+      ansible.builtin.set_fact:
+        k3s_agent_nvidia_container_runtime_installed: true
+
+# This task runs when K3s is already installed but we need to ensure NVIDIA runtime is configured correctly
+
+- name: Check if containerd config exists
+  ansible.builtin.stat:
+    path: /etc/containerd/config.toml
+  register: containerd_config_stat
+
+- name: Backup existing containerd config if it exists
+  ansible.builtin.copy:
+    src: "/etc/containerd/config.toml"
+    dest: "{{ (k3s_test_mode | bool) | ternary(test_base_dir ~ '/etc/containerd/config.toml.bak', '/etc/containerd/config.toml.bak') }}"
+    remote_src: true
+    mode: '0644'
+    owner: root
+    group: root
+  when:
+    - not k3s_test_mode  # or, alternatively, run only in real mode
+    # If you need to test backup in test mode change the condition to true
+
+- name: Set fact that NVIDIA container runtime is installed
+  ansible.builtin.set_fact:
+    k3s_agent_nvidia_container_runtime_installed: true

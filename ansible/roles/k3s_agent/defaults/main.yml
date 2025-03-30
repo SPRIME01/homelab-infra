@@ -1,11 +1,11 @@
 ---
 # K3s server information
-k3s_server_url: "https://192.168.0.51:6443"
-k3s_token: ""  # To be specified at runtime
+k3s_agent_server_url: "https://192.168.0.51:6443"
+k3s_agent_token: ""  # To be specified at runtime
 
 # K3s version
-k3s_version: "v1.28.4+k3s2"
-k3s_installer_url: "https://get.k3s.io"
+k3s_agent_version: "v1.28.4+k3s2"
+k3s_agent_installer_url: "https://get.k3s.io"
 
 # K3s agent configuration
 k3s_agent_flags:
@@ -17,14 +17,14 @@ k3s_agent_flags:
   - "--container-runtime-endpoint=unix:///run/containerd/containerd.sock"
 
 # NVIDIA GPU configuration
-nvidia_container_runtime_installed: false
-nvidia_docker_repo_url: "https://nvidia.github.io/nvidia-docker/ubuntu22.04/nvidia-docker.list"
-nvidia_docker_repo_gpg_key: "https://nvidia.github.io/nvidia-docker/gpgkey"
+k3s_agent_nvidia_container_runtime_installed: false
+k3s_agent_nvidia_docker_repo_url: "https://nvidia.github.io/nvidia-docker/ubuntu22.04/nvidia-docker.list"
+k3s_agent_nvidia_docker_repo_gpg_key: "https://nvidia.github.io/nvidia-docker/gpgkey"
 
 # Node configuration
-node_hostname: "{{ ansible_hostname }}"
-node_ip: "{{ ansible_default_ipv4.address }}"
+k3s_agent_node_hostname: "{{ ansible_hostname }}"
+k3s_agent_node_ip: "{{ ansible_default_ipv4.address }}"
 
 # Directory for K3s configuration
-k3s_config_dir: "/etc/rancher/k3s"
-k3s_service_file: "/etc/systemd/system/k3s-agent.service"
+k3s_agent_config_dir: "/etc/rancher/k3s"
+k3s_agent_service_file: "/etc/ansible.builtin.systemd/system/k3s-agent.service"
