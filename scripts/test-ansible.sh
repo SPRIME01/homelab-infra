@@ -235,55 +235,96 @@ test_role() {
         return 1
     fi
 
-    # Run each stage
-    for stage in "${stages_to_run[@]}"; do
-        ((total_stages++))
-        case $stage in
-            "lint")
-                if lint_role "$role"; then
-                    ((passed_stages++))
-                else
-                    ((errors++))
-                fi
-                ;;
-            "syntax")
-                if check_syntax "$role"; then
-                    ((passed_stages++))
-                else
-                    ((errors++))
-                fi
-                ;;
-            "dry-run")
-                # Force check_mode=no for critical setup tasks during dry-run
-                log "INFO" "Running ansible-playbook with detailed verbosity (-vvv) for better error tracking."
-                if ANSIBLE_CHECK_MODE_IGNORE=True ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook --check "$ANSIBLE_ROLES_DIR/$role/tests/test.yml" -vvv >> "$LOG_FILE" 2>&1; then
-                    log "TEST" "✅ Role test: $role: PASS"
-                    ((passed_stages++))
-                else
-                    log "TEST" "❌ Role test: $role: FAIL - Role test encountered errors"
-                    log "ERROR" "Test errors in role: $role"
-                    ((errors++))
-                fi
-                ;;
-            "check")
-                if check_role "$role"; then
-                    ((passed_stages++))
-                else
-                    ((errors++))
-                fi
-                ;;
-            "apply")
-                if apply_role "$role"; then
-                    ((passed_stages++))
-                else
-                    ((errors++))
-                fi
-                ;;
-            *)
-                log "WARN" "Unknown stage: $stage"
-                ;;
-        esac
-    done
+    # Special handling for k3s_server role
+    if [ "$role" == "k3s_server" ]; then
+        for stage in "${stages_to_run[@]}"; do
+            ((total_stages++))
+            case $stage in
+                "lint")
+                    log "INFO" "Linting role: $role"
+                    ansible-lint "$ANSIBLE_ROLES_DIR/$role" -v 2>&1 | tee -a "$LOG_FILE"
+                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                        log "TEST" "✅ Lint: $role: PASS"
+                        ((passed_stages++))
+                    else
+                        log "TEST" "❌ Lint: $role: FAIL - See log for details"
+                        ((errors++))
+                    fi
+                    ;;
+                "dry-run")
+                    log "INFO" "Running ansible-playbook with dry-run (--check) for $role"
+                    ./scripts/test-k3s-server.sh --check >> "$LOG_FILE" 2>&1
+                    if [ $? -eq 0 ]; then
+                        log "TEST" "✅ Dry-run: $role: PASS"
+                        ((passed_stages++))
+                    else
+                        log "TEST" "❌ Dry-run: $role: FAIL - See log for details"
+                        ((errors++))
+                    fi
+                    ;;
+                "run")
+                    log "INFO" "Running full test for $role"
+                    ./scripts/test-k3s-server.sh >> "$LOG_FILE" 2>&1
+                    if [ $? -eq 0 ]; then
+                        log "TEST" "✅ Run: $role: PASS"
+                        ((passed_stages++))
+                    else
+                        log "TEST" "❌ Run: $role: FAIL - See log for details"
+                        ((errors++))
+                    fi
+                    ;;
+                *)
+                    log "ERROR" "Unknown test stage: $stage"
+                    exit 1
+                    ;;
+            esac
+        done
+    else
+        # Standard handling for other roles
+        for stage in "${stages_to_run[@]}"; do
+            ((total_stages++))
+            case $stage in
+                "lint")
+                    if lint_role "$role"; then
+                        ((passed_stages++))
+                    else
+                        ((errors++))
+                    fi
+                    ;;
+                "syntax")
+                    if check_syntax "$role"; then
+                        ((passed_stages++))
+                    else
+                        ((errors++))
+                    fi
+                    ;;
+                "dry-run")
+                    if dry_run_role "$role"; then
+                        ((passed_stages++))
+                    else
+                        ((errors++))
+                    fi
+                    ;;
+                "check")
+                    if check_role "$role"; then
+                        ((passed_stages++))
+                    else
+                        ((errors++))
+                    fi
+                    ;;
+                "apply")
+                    if apply_role "$role"; then
+                        ((passed_stages++))
+                    else
+                        ((errors++))
+                    fi
+                    ;;
+                *)
+                    log "WARN" "Unknown stage: $stage"
+                    ;;
+            esac
+        done
+    fi
 
     # Add result to summary
     echo "Role: $role" >> "$SUMMARY_FILE"

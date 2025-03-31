@@ -1,28 +1,28 @@
 ---
 - name: Include prerequisites tasks
-  include_tasks: prerequisites.yml
-  tags:
-    - k3s
-    - k3s_server
-    - prerequisites
+  ansible.builtin.include_tasks:
+    file: prerequisites.yml
+    apply:
+      tags:
+        - prerequisites
 
-- name: Include install tasks
-  include_tasks: install.yml
-  tags:
-    - k3s
-    - k3s_server
-    - install
+- name: Include installation tasks
+  ansible.builtin.include_tasks:
+    file: install.yml
+    apply:
+      tags:
+        - install
 
 - name: Include configuration tasks
-  include_tasks: configure.yml
-  tags:
-    - k3s
-    - k3s_server
-    - configure
+  ansible.builtin.include_tasks:
+    file: configure.yml
+    apply:
+      tags:
+        - configure
 
 - name: Include verification tasks
-  include_tasks: verify.yml
-  tags:
-    - k3s
-    - k3s_server
-    - verify
+  ansible.builtin.include_tasks:
+    file: verify.yml
+    apply:
+      tags:
+        - verify

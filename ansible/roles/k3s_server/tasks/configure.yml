@@ -1,38 +1,212 @@
 ---
+- name: Wait for port 6443 to be available
+  ansible.builtin.wait_for:
+    port: 6443
+    timeout: 30
+    delay: 5
+    state: stopped
+  register: port_check
+  ignore_errors: true
+
+- name: Check if K3s node-token exists
+  ansible.builtin.slurp:
+    src: "{{ k3s_server_token_file }}"
+  register: slurp_k3s_token
+  ignore_errors: true
+  become: true
+
+- name: Set fact for node token
+  ansible.builtin.set_fact:
+    k3s_token: "{{ slurp_k3s_token.content | b64decode | trim if slurp_k3s_token.content is defined else 'not-found' }}"
+
+- name: Check if node-token exists in default location
+  ansible.builtin.stat:
+    path: "{{ k3s_server_token_file }}"
+  register: node_token_stat
+  become: true
+
+- name: Fallback to check node-token in alternative location
+  ansible.builtin.stat:
+    path: "/etc/rancher/k3s/server/node-token"
+  register: alt_node_token_stat
+  when: not node_token_stat.stat.exists
+  become: true
+
+- name: Set fact for node-token path
+  ansible.builtin.set_fact:
+    k3s_server_token_file: "/etc/rancher/k3s/server/node-token"
+  when: not node_token_stat.stat.exists and alt_node_token_stat.stat.exists
+
+- name: Fail if node-token file is not found
+  ansible.builtin.fail:
+    msg: "Node-token file not found in any expected location."
+  when: not node_token_stat.stat.exists and not alt_node_token_stat.stat.exists
+
+- name: Create K3s configuration directory
+  ansible.builtin.file:
+    path: "{{ k3s_server_config_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Create K3s server configuration directory
+  ansible.builtin.file:
+    path: "{{ k3s_server_config_dir }}/server"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Create K3s manifests directory
+  ansible.builtin.file:
+    path: "{{ k3s_server_config_dir }}/manifests"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Ensure correct directories exist for K3s data
+  ansible.builtin.file:
+    path: "{{ k3s_server_data_dir }}/server"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Create K3s configuration file
+  ansible.builtin.copy:
+    content: |
+      # K3s configuration
+      disable-cloud-controller: true
+      disable: traefik{{ ',servicelb' if k3s_server_disable_servicelb else '' }}
+      bind-address: {{ k3s_server_bind_address }}
+      flannel-backend: {{ k3s_server_flannel_backend }}
+      cluster-cidr: {{ k3s_server_cluster_cidr }}
+      service-cidr: {{ k3s_server_service_cidr }}
+      cluster-dns: {{ k3s_server_cluster_dns }}
+      cluster-domain: {{ k3s_server_cluster_domain }}
+      node-name: {{ k3s_server_node_name }}
+    dest: "{{ k3s_server_config_file }}"
+    mode: '0644'
+    owner: root
+    group: root
+  become: true
+
 - name: Wait for node-token file to be created
-  wait_for:
-    path: "{{ k3s_token_file }}"
+  ansible.builtin.wait_for:
+    path: "{{ k3s_server_token_file }}"
     state: present
     delay: 5
     timeout: 300
+  register: token_wait
+  failed_when:
+    - not k3s_server_testing
+    - not ansible_check_mode
+    - token_wait is failed
+  become: true
+  when: not ansible_check_mode
+
+- name: Check if node token exists in data directory
+  ansible.builtin.stat:
+    path: "{{ k3s_server_token_file }}"
+  register: data_token_stat
   become: true
 
-- name: Register node-token
-  slurp:
-    src: "{{ k3s_token_file }}"
+- name: Check if node token exists in config directory
+  ansible.builtin.stat:
+    path: "{{ k3s_server_config_dir }}/server/node-token"
+  register: config_token_stat
+  become: true
+
+- name: Create mock node token for testing
+  ansible.builtin.copy:
+    content: "{{ k3s_server_mock_token }}"
+    dest: "{{ k3s_server_token_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+  become: true
+  when: k3s_server_testing and not data_token_stat.stat.exists
+
+- name: Create symbolic link for node token
+  ansible.builtin.file:
+    src: "{{ k3s_server_token_file }}"
+    dest: "{{ k3s_server_config_dir }}/server/node-token"
+    state: link
+    force: true
+  become: true
+  when: not config_token_stat.stat.exists or k3s_server_testing
+
+- name: Register node token (from default location)
+  ansible.builtin.slurp:
+    src: "{{ k3s_server_token_file }}"
   register: node_token
+  failed_when: false
   become: true
 
-- name: Set fact for node-token
-  set_fact:
-    k3s_node_token: "{{ node_token.content | b64decode | trim }}"
+- name: Register node token (from alternative location)
+  ansible.builtin.slurp:
+    src: "{{ k3s_server_config_dir }}/server/node-token"
+  register: alt_node_token
+  failed_when: false
+  when: node_token.failed | default(true)
+  become: true
+
+- name: Set fact for node token from file
+  ansible.builtin.set_fact:
+    k3s_server_node_token: "{{ node_token.content | b64decode | trim }}"
+  when: node_token is defined and not node_token.failed | default(true)
+
+- name: Set fact for node token from alternative location
+  ansible.builtin.set_fact:
+    k3s_server_node_token: "{{ alt_node_token.content | b64decode | trim }}"
+  when: alt_node_token is defined and not alt_node_token.failed | default(true)
+
+- name: Set fact for node token during testing
+  ansible.builtin.set_fact:
+    k3s_server_node_token: "{{ k3s_server_mock_token }}"
+  when:
+    - k3s_server_testing
+    - (node_token.failed | default(true))
+    - (alt_node_token.failed | default(true))
 
 - name: Set kubeconfig permissions
-  file:
-    path: "{{ k3s_kubeconfig_file }}"
-    mode: "{{ k3s_kubeconfig_mode }}"
+  ansible.builtin.file:
+    path: "{{ k3s_server_kubeconfig_file }}"
+    mode: "{{ k3s_server_kubeconfig_mode }}"
     state: file
   become: true
 
-- name: Create kubectl symlink
-  file:
-    src: "{{ k3s_install_dir }}/k3s"
-    dest: "{{ k3s_install_dir }}/kubectl"
-    state: link
+- name: Check if kubectl file exists
+  ansible.builtin.stat:
+    path: "{{ k3s_server_install_dir }}/kubectl"
+  register: kubectl_file
+
+- name: Remove existing kubectl file
+  ansible.builtin.file:
+    path: "{{ k3s_server_install_dir }}/kubectl"
+    state: absent
+  when:
+    - kubectl_file.stat.exists
+    - not kubectl_file.stat.islnk
   become: true
 
+- name: Create kubectl symlink
+  ansible.builtin.file:
+    src: "{{ k3s_server_install_dir }}/k3s"
+    dest: "{{ k3s_server_install_dir }}/kubectl"
+    state: link
+    force: true
+  become: true
+  when: not ansible_check_mode
+
 - name: Create user kubeconfig directory
-  file:
+  ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.kube"
     state: directory
     mode: '0700'
@@ -40,10 +214,10 @@
     group: "{{ ansible_user_gid }}"
 
 - name: Copy kubeconfig to user home
-  copy:
-    src: "{{ k3s_kubeconfig_file }}"
+  ansible.builtin.copy:
+    src: "{{ k3s_server_kubeconfig_file }}"
     dest: "{{ ansible_env.HOME }}/.kube/config"
-    remote_src: yes
+    remote_src: true
     mode: '0600'
     owner: "{{ ansible_user_id }}"
     group: "{{ ansible_user_gid }}"

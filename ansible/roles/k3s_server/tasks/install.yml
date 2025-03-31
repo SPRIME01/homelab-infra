@@ -1,46 +1,47 @@
 ---
-- name: Check if K3s binary is already installed
-  stat:
-    path: "{{ k3s_install_dir }}/k3s"
+- name: Check if K3s binary exists
+  ansible.builtin.stat:
+    path: "{{ k3s_server_install_dir }}/k3s"
   register: k3s_binary
 
 - name: Download K3s binary
-  get_url:
-    url: "{{ k3s_release_url }}"
-    dest: "{{ k3s_install_dir }}/k3s"
+  ansible.builtin.get_url:
+    url: "{{ k3s_server_release_url }}"
+    dest: "{{ k3s_server_install_dir }}/k3s"
     mode: '0755'
-    force: true
-  become: true
-  when: not k3s_binary.stat.exists or k3s_binary.stat.exists and (k3s_version not in k3s_binary.stat.checksum)
-  notify:
-    - restart k3s
-
-- name: Create K3s server configuration
-  template:
-    src: config.yaml.j2
-    dest: "{{ k3s_server_config_file }}"
     owner: root
     group: root
-    mode: '0600'
+  when: not k3s_binary.stat.exists
   become: true
-  notify:
-    - restart k3s
 
-- name: Create K3s systemd service
-  template:
+- name: Create K3s service file
+  ansible.builtin.template:
     src: k3s.service.j2
-    dest: "{{ k3s_systemd_dir }}/{{ k3s_service_name }}.service"
+    dest: "{{ k3s_server_systemd_dir }}/{{ k3s_server_service_name }}.service"
+    mode: '0644'
     owner: root
     group: root
-    mode: '0644'
-  become: true
+  vars:
+    k3s_exec_command: "server --config {{ k3s_server_config_file }}"
   notify:
-    - restart k3s
+    - Restart K3s
+  become: true
 
-- name: Ensure K3s service is enabled and started
-  systemd:
-    name: "{{ k3s_service_name }}"
+- name: Create K3s systemd environment file
+  ansible.builtin.template:
+    src: k3s.env.j2
+    dest: "{{ k3s_server_systemd_dir }}/{{ k3s_server_service_name }}.env"
+    mode: '0644'
+    owner: root
+    group: root
+  notify:
+    - Restart K3s
+  become: true
+
+- name: Start and enable K3s service
+  ansible.builtin.systemd:
+    name: "{{ k3s_server_service_name }}"
     state: started
-    enabled: yes
-    daemon_reload: yes
+    enabled: true
+    daemon_reload: true
   become: true

@@ -1,0 +1,27 @@
+---
+- name: Setup test environment
+  when: k3s_server_testing
+  block:
+    - name: Create mock directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ k3s_server_data_dir }}"
+        - "{{ k3s_server_data_dir }}/server"
+        - "{{ k3s_server_config_dir }}"
+        - "{{ k3s_server_config_dir }}/server"
+        - "{{ k3s_server_config_dir }}/manifests"
+
+    - name: Create mock node token
+      ansible.builtin.copy:
+        content: "K10mock::server:token-for-test-{{ 9999999999 | random }}"
+        dest: "{{ k3s_server_token_file }}"
+        mode: '0600'
+
+    - name: Create mock kubeconfig
+      ansible.builtin.template:
+        src: test_kubeconfig.j2
+        dest: "{{ k3s_server_kubeconfig_file }}"
+        mode: '0644'

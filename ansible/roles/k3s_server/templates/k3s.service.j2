@@ -6,14 +6,13 @@ After=network-online.target
 
 [Service]
 Type=notify
+EnvironmentFile=-{{ k3s_server_systemd_dir }}/{{ k3s_server_service_name }}.env
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart={{ k3s_install_dir }}/k3s server --config {{ k3s_server_config_file }}
+ExecStart={{ k3s_server_install_dir }}/k3s {{ k3s_exec_command }}
 KillMode=process
 Delegate=yes
-# Having non-zero Limit*s causes performance problems due to accounting overhead
-# in the kernel. We recommend using cgroups to do container-local accounting.
-LimitNOFILE=1048576
+LimitNOFILE=infinity
 LimitNPROC=infinity
 LimitCORE=infinity
 TasksMax=infinity
