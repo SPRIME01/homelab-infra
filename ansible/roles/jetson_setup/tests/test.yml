@@ -5,7 +5,20 @@
   gather_facts: yes
   vars:
     is_test_mode: true
-    ansible_check_mode: false
+    jetson_setup_required_locales:
+      - "en_US.UTF-8"
+      - "en_GB.UTF-8"
+    jetson_setup_cuda_version: "11.4"
+    jetson_setup_ml_libraries:
+      - nvidia-tensorrt
+      - nvidia-cuda-dev
+    jetson_setup_monitoring_packages:
+      - prometheus-node-exporter
+    jetson_setup_python_ml_packages:
+      - numpy
+      - pandas
+    jetson_setup_container_runtime: "docker"
+    jetson_setup_power_mode: "balanced"
 
   tasks:
     - name: Include jetson_setup role

@@ -1,11 +1,11 @@
 ---
-- name: Add NVIDIA Docker repository (mock in test mode)
+- name: Mock container runtime setup (test mode)
   ansible.builtin.debug:
-    msg: "Would add NVIDIA Docker repository in real mode"
+    msg: "Would configure {{ jetson_setup_container_runtime }} runtime in test mode"
   when: ansible_check_mode or is_test_mode
 
-- name: Add NVIDIA Docker repository
+- name: Install container runtime
   ansible.builtin.package:
-    name: nvidia-docker
+    name: "{{ jetson_setup_container_runtime }}"
     state: present
   when: not ansible_check_mode and not is_test_mode

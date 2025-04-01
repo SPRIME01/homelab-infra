@@ -1,19 +1,11 @@
 ---
 - name: Mock Python ML setup (test mode)
   ansible.builtin.debug:
-    msg: "Would configure Python ML environment in real mode"
+    msg: "Would configure Python ML packages in test mode"
   when: ansible_check_mode or is_test_mode
-
-- name: Create Python ML virtualenv (real mode)
-  ansible.builtin.pip:
-    name: pip
-    virtualenv: "{{ ansible_env.HOME }}/.virtualenvs/ml"
-    virtualenv_command: python3 -m venv
-  when: not ansible_check_mode and not is_test_mode
 
 - name: Install Python ML packages
   ansible.builtin.pip:
     name: "{{ jetson_setup_python_ml_packages }}"
-    virtualenv: "{{ ansible_env.HOME }}/.virtualenvs/ml"
+    state: present
   when: not ansible_check_mode and not is_test_mode
-  failed_when: false

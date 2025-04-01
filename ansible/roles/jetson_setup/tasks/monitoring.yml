@@ -1,11 +1,19 @@
 ---
+- name: Mock monitoring setup (test mode)
+  ansible.builtin.debug:
+    msg: "Would install and configure monitoring services in test mode"
+  when: ansible_check_mode or is_test_mode
+
 - name: Install monitoring packages
   ansible.builtin.package:
     name: "{{ jetson_setup_monitoring_packages }}"
     state: present
   when: not ansible_check_mode and not is_test_mode
 
-- name: Configure monitoring services (mock in test mode)
-  ansible.builtin.debug:
-    msg: "Would configure monitoring in real mode"
-  when: ansible_check_mode or is_test_mode
+- name: Start monitoring services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items: "{{ jetson_setup_monitoring_packages }}"
+  when: not ansible_check_mode and not is_test_mode

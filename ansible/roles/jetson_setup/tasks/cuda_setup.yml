@@ -1,17 +1,17 @@
 ---
 - name: Mock CUDA setup (test mode)
   ansible.builtin.debug:
-    msg: "Would configure CUDA {{ jetson_setup_cuda_version }} in real mode"
+    msg: "Would configure CUDA {{ jetson_setup_cuda_version }} in test mode"
   when: ansible_check_mode or is_test_mode
 
 - name: Configure CUDA environment
   ansible.builtin.template:
     src: cuda.sh.j2
     dest: /etc/profile.d/cuda.sh
-    mode: "0o644"
+    mode: "0644"
   when: not ansible_check_mode and not is_test_mode
 
-- name: Update PATH for CUDA
+- name: Update CUDA paths
   ansible.builtin.lineinfile:
     path: /etc/environment
     line: 'PATH=$PATH:/usr/local/cuda/bin'
