@@ -1,23 +1,22 @@
----
 galaxy_info:
-  author: Homelab Admin
-  description: Ansible role to configure NVIDIA Jetson AGX Orin for AI/ML workloads
+  role_name: jetson_setup
+  author: sprime01
+  description: Setup role for Jetson AGX Orin devices.
+  company: HomeLab
+
   license: MIT
-  min_ansible_version: 2.9
+
+  min_ansible_version: "2.9"
+
   platforms:
     - name: Ubuntu
       versions:
         - jammy
+
   galaxy_tags:
     - jetson
     - nvidia
     - cuda
-    - ml
-    - ai
-    - gpu
-    - tensorrt
-    - cudnn
-    - kubernetes
-    - homelab
+    - docker
 
 dependencies: []

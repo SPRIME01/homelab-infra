@@ -6,14 +6,21 @@ certfile: fullchain.pem
 keyfile: privkey.pem
 envvars:
   - name: INFLUXDB_DB
-    value: {{ influxdb_database }}
+    value: {{ home_assistant_integration_influxdb_database }}
   - name: INFLUXDB_USER
-    value: {{ influxdb_username }}
+    value: {{ home_assistant_integration_influxdb_username }}
   - name: INFLUXDB_USER_PASSWORD
-    value: {{ influxdb_password }}
+    value: {{ home_assistant_integration_influxdb_password }}
   - name: INFLUXDB_ADMIN_USER
     value: admin
   - name: INFLUXDB_ADMIN_PASSWORD
-    value: {{ influxdb_password }}
+    value: {{ home_assistant_integration_influxdb_password }}
   - name: INFLUXDB_RETENTION
-    value: {{ influxdb_retention_policy }}
+    value: {{ home_assistant_integration_influxdb_retention_policy }}
+
+# Mock InfluxDB configuration
+host: {{ home_assistant_integration_influxdb_host }}
+port: {{ home_assistant_integration_influxdb_port }}
+database: {{ home_assistant_integration_influxdb_database }}
+username: {{ home_assistant_integration_influxdb_username }}
+password: {{ home_assistant_integration_influxdb_password }}

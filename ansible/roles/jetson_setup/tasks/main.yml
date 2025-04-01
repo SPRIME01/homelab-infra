@@ -1,44 +1,36 @@
 ---
-# Main tasks file for jetson_setup role
+# Add a variable to determine if we're in test mode
+- name: Set test mode variable
+  ansible.builtin.set_fact:
+    is_test_mode: "{{ is_test_mode | default(false) }}"
+  tags: always
 
+# Original hardware check
 - name: Check if running on Jetson AGX Orin
-  shell: grep -q "NVIDIA Jetson AGX Orin" /proc/device-tree/model
-  register: is_jetson_agx_orin
-  ignore_errors: true
+  ansible.builtin.command: cat /proc/device-tree/model
+  register: jetson_model
   changed_when: false
+  failed_when: false
+  check_mode: false
+  when: not is_test_mode
 
 - name: Fail if not running on Jetson AGX Orin
-  fail:
-    msg: "This role is designed for NVIDIA Jetson AGX Orin devices only."
-  when: is_jetson_agx_orin.rc != 0
+  ansible.builtin.fail:
+    msg: "This role is designed to run only on Jetson AGX Orin devices."
+  when: not is_test_mode and (jetson_model.rc != 0 or 'Jetson AGX Orin' not in jetson_model.stdout)
 
-- name: Update apt cache
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-
-- name: Install system packages
-  apt:
-    name: "{{ system_packages }}"
-    state: present
-
+# Continue with the rest of the tasks
 - name: Import system configuration tasks
-  import_tasks: system_config.yml
-
+  ansible.builtin.import_tasks: system_config.yml
 - name: Import power optimization tasks
-  import_tasks: power_optimization.yml
-
+  ansible.builtin.import_tasks: power_optimization.yml
 - name: Import CUDA setup tasks
-  import_tasks: cuda_setup.yml
-
+  ansible.builtin.import_tasks: cuda_setup.yml
 - name: Import ML libraries tasks
-  import_tasks: ml_libraries.yml
-
+  ansible.builtin.import_tasks: ml_libraries.yml
 - name: Import container runtime tasks
-  import_tasks: container_runtime.yml
-
-- name: Import Python ML environment setup
-  import_tasks: python_ml.yml
-
-- name: Import monitoring setup tasks
-  import_tasks: monitoring.yml
+  ansible.builtin.import_tasks: container_runtime.yml
+- name: Import Python ML tasks
+  ansible.builtin.import_tasks: python_ml.yml
+- name: Import monitoring tasks
+  ansible.builtin.import_tasks: monitoring.yml

@@ -6,7 +6,13 @@ if [ -f "test.env" ]; then
     set -a
     source test.env
     set +a
+    echo "Loaded environment variables from test.env"
 fi
+
+# Set default values for ansible-become settings if not defined in test.env
+export ANSIBLE_BECOME_METHOD=${ANSIBLE_BECOME_METHOD:-sudo}
+export ANSIBLE_BECOME_FLAGS=${ANSIBLE_BECOME_FLAGS:-"--non-interactive"}
+export ANSIBLE_BECOME_ASK_PASS=${ANSIBLE_BECOME_ASK_PASS:-false}
 
 # Run ansible-lint on all playbooks
 echo "Running ansible-lint..."

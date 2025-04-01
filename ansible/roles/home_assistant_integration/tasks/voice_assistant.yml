@@ -1,49 +1,51 @@
 ---
-# Tasks for voice assistant configuration
+# Tasks for Voice Assistant configuration
 
-- name: Install required voice assistant add-ons
-  shell: "ha add-on install {{ item }}"
-  become: true
-  ignore_errors: yes
-  with_items:
-    - "core_mariadb"
-    - "a0d7b954_piper"
-    - "a0d7b954_wyoming"
-  register: voice_install
-  changed_when: "'Installed' in voice_install.stdout"
+- name: Install Voice Assistant add-on
+  ansible.builtin.command:
+    cmd: "hassio addons install {{ home_assistant_integration_voice_assistant_addon }}"
+  register: voice_assistant_install
+  failed_when: false
+  changed_when: "'already installed' not in voice_assistant_install.stderr"
+  when: not is_testing
 
-- name: Configure voice assistant integration
-  template:
-    src: voice_assistant.j2
-    dest: /config/integrations/voice_assistant.yaml
-    owner: homeassistant
-    group: homeassistant
+- name: Accept Voice Assistant add-on license
+  ansible.builtin.lineinfile:
+    path: "{{ hassio_base_dir }}/addons/{{ home_assistant_integration_voice_assistant_addon }}/options.json"
+    regexp: '"license": false'
+    line: '"license": true'
+    create: true
     mode: '0644'
-  become: true
-  notify: restart home assistant
+  when: home_assistant_integration_voice_assistant_accept_license | bool
 
-- name: Ensure voice assistant integration is included in configuration
-  lineinfile:
-    path: /config/configuration.yaml
-    line: "conversation: !include integrations/voice_assistant.yaml"
-    state: present
-  become: true
-  notify: reload home assistant configuration
+- name: Configure Voice Assistant integration
+  ansible.builtin.template:
+    src: voice_assistant.j2
+    dest: "{{ config_base_dir }}/integrations/voice_assistant.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
+    mode: '0644'
+  notify: Reload Home Assistant Configuration
 
 - name: Configure Wyoming integration
-  template:
+  ansible.builtin.template:
     src: wyoming.j2
-    dest: /config/wyoming.yaml
-    owner: homeassistant
-    group: homeassistant
+    dest: "{{ config_base_dir }}/integrations/wyoming.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0644'
-  become: true
+  notify: Reload Home Assistant Configuration
+  when: home_assistant_integration_voice_assistant_type == "local"
 
-- name: Start voice assistant add-ons
-  shell: "ha add-on start {{ item }}"
-  become: true
-  ignore_errors: yes
-  with_items:
-    - "core_mariadb"
-    - "a0d7b954_piper"
-    - "a0d7b954_wyoming"
+- name: Start Voice Assistant add-on
+  ansible.builtin.command:
+    cmd: "hassio addons start {{ home_assistant_integration_voice_assistant_addon }}"
+  register: voice_assistant_start
+  failed_when: false
+  changed_when: "'already running' not in voice_assistant_start.stderr"
+  when: not is_testing
+
+- name: Mock starting Voice Assistant add-on in test mode
+  ansible.builtin.debug:
+    msg: "Would start Voice Assistant add-on in test mode"
+  when: is_testing

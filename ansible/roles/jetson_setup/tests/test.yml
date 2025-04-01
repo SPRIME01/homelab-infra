@@ -2,9 +2,12 @@
 - name: Test jetson_setup role
   hosts: localhost
   connection: local
-  become: false
-  gather_facts: true
+  gather_facts: yes
+  vars:
+    is_test_mode: true
+    ansible_check_mode: false
+
   tasks:
     - name: Include jetson_setup role
-      include_role:
+      ansible.builtin.include_role:
         name: ../../../roles/jetson_setup

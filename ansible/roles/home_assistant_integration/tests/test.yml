@@ -1,10 +1,12 @@
 ---
-- name: Test home_assistant_integration role
-  hosts: localhost
-  connection: local
-  become: false
+- hosts: localhost
   gather_facts: true
-  tasks:
-    - name: Include home_assistant_integration role
-      include_role:
-        name: ../../../roles/home_assistant_integration
+  become: false
+  vars:
+    home_assistant_integration_voice_assistant_addon: "a0d7b954_rhasspy"
+    home_assistant_integration_voice_assistant_language: "en"
+    home_assistant_integration_voice_assistant_accept_license: true
+    home_assistant_integration_voice_assistant_type: "local"
+    home_assistant_integration_voice_assistant_wake_word: "Hey Home"
+    home_assistant_integration_voice_assistant_model: "vosk"
+    is_testing: true

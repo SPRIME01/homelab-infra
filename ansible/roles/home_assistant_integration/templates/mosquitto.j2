@@ -1,10 +1,16 @@
 # Mosquitto Add-on Configuration
 logins:
-  - username: {{ mqtt_username }}
-    password: {{ mqtt_password }}
+  - username: {{ home_assistant_integration_mqtt_username }}
+    password: {{ home_assistant_integration_mqtt_password }}
 customize:
   active: true
   folder: mosquitto
 certfile: fullchain.pem
 keyfile: privkey.pem
 require_certificate: false
+
+# Mock Mosquitto configuration
+broker: {{ home_assistant_integration_mqtt_broker_host }}
+port: {{ home_assistant_integration_mqtt_broker_port }}
+username: {{ home_assistant_integration_mqtt_username }}
+password: {{ home_assistant_integration_mqtt_password }}

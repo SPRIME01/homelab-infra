@@ -1,79 +1,18 @@
 ---
-# Machine Learning libraries setup tasks
+- name: Mock ML libraries setup (test mode)
+  ansible.builtin.debug:
+    msg: "Would configure ML libraries in real mode"
+  when: ansible_check_mode or is_test_mode
 
-- name: Check if cuDNN is installed
-  stat:
-    path: /usr/local/cuda/include/cudnn.h
-  register: cudnn_installed
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Check if TensorRT is installed
-  stat:
-    path: /usr/include/NvInferRuntime.h
-  register: tensorrt_installed
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Set default ML library versions if not defined
-  set_fact:
-    cudnn_version: "{{ cudnn_version | default('8.6.0') }}"
-    tensorrt_version: "{{ tensorrt_version | default('8.5.2') }}"
-  when: not ansible_check_mode
-
-- name: Check if ML library packages are available
-  shell: "apt-cache madison {{ item }} | grep -q {{ cudnn_version }}"
-  with_items:
-    - libcudnn8
-    - libcudnn8-dev
-    - tensorrt
-  register: ml_pkg_check
-  ignore_errors: true
-  changed_when: false
-  when: not ansible_check_mode
-
-- name: Install cuDNN and TensorRT from apt
-  apt:
-    name:
-      - "libcudnn8={{ cudnn_version }}*"
-      - "libcudnn8-dev={{ cudnn_version }}*"
-      - "tensorrt={{ tensorrt_version }}*"
+- name: Install ML libraries
+  ansible.builtin.package:
+    name: "{{ jetson_setup_ml_libraries }}"
     state: present
-  when: not ansible_check_mode and ml_pkg_check.results is defined and ml_pkg_check.results | length > 0 and ml_pkg_check.results[0].rc == 0
-  ignore_errors: "{{ ansible_check_mode }}"
-  register: ml_libs_apt
+  when: not ansible_check_mode and not is_test_mode
 
-- name: Install OpenCV dependencies
-  apt:
-    name:
-      - libopencv-dev
-      - python3-opencv
-    state: present
-  when: not ansible_check_mode
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Set up symlinks for ML libraries
-  file:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
-    state: link
-  with_items:
-    - { src: '/usr/lib/aarch64-linux-gnu/libcudnn.so', dest: '/usr/local/cuda/lib64/libcudnn.so' }
-    - { src: '/usr/include/cudnn.h', dest: '/usr/local/cuda/include/cudnn.h' }
-  when: >
-    not ansible_check_mode and
-    not cudnn_installed.stat.exists and
-    ml_libs_apt is defined and
-    ml_libs_apt is success
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Set paths for NVIDIA ML libraries
-  lineinfile:
-    path: /etc/environment
-    regexp: "{{ item.key }}="
-    line: "{{ item.key }}={{ item.value }}"
-    state: present
-  with_items:
-    - { key: "CUDNN_VERSION", value: "{{ cudnn_version }}" }
-    - { key: "TENSORRT_VERSION", value: "{{ tensorrt_version }}" }
-    - { key: "LD_LIBRARY_PATH", value: "/usr/local/cuda/lib64:${LD_LIBRARY_PATH}" }
-  when: not ansible_check_mode
-  ignore_errors: "{{ ansible_check_mode }}"
+- name: Configure ML library paths
+  ansible.builtin.template:
+    src: ml_paths.conf.j2
+    dest: /etc/ld.so.conf.d/nvidia-ml.conf
+    mode: "0o644"
+  when: not ansible_check_mode and not is_test_mode

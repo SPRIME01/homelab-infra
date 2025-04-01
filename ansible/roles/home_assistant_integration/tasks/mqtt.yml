@@ -1,42 +1,52 @@
 ---
 # Tasks for MQTT configuration
 
-- name: Install Mosquitto MQTT client
-  shell: ha add-on install core_mosquitto
-  become: true
-  ignore_errors: yes
+- name: Install MQTT add-on
+  ansible.builtin.command:
+    cmd: "hassio addons install core_mosquitto"
   register: mqtt_install
-  changed_when: "'Installed' in mqtt_install.stdout"
+  failed_when: false
+  changed_when: "'already installed' not in mqtt_install.stderr"
+  when: not is_testing
 
-- name: Configure Mosquitto MQTT add-on
-  template:
-    src: mosquitto.j2
-    dest: /config/mosquitto.yaml
-    owner: homeassistant
-    group: homeassistant
+- name: Accept MQTT add-on license
+  ansible.builtin.lineinfile:
+    path: "{{ hassio_base_dir }}/addons/core_mosquitto/options.json"
+    regexp: '"license": false'
+    line: '"license": true'
+    create: true
     mode: '0644'
-  become: true
-  notify: restart mosquitto
+  when: home_assistant_integration_mqtt_accept_license | bool
+
+- name: Configure MQTT add-on
+  ansible.builtin.template:
+    src: mosquitto.j2
+    dest: "{{ config_base_dir }}/mosquitto.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
+    mode: '0644'
+  become: "{{ not is_testing }}"
+  notify: Restart Mosquitto
 
 - name: Configure MQTT integration in Home Assistant
-  template:
+  ansible.builtin.template:
     src: mqtt.j2
-    dest: /config/integrations/mqtt.yaml
-    owner: homeassistant
-    group: homeassistant
+    dest: "{{ config_base_dir }}/integrations/mqtt.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0644'
-  become: true
-  notify: restart home assistant
-
-- name: Ensure MQTT integration is included in configuration
-  lineinfile:
-    path: /config/configuration.yaml
-    line: "mqtt: !include integrations/mqtt.yaml"
-    state: present
-  become: true
-  notify: reload home assistant configuration
+  become: "{{ not is_testing }}"
+  notify: Reload Home Assistant Configuration
 
 - name: Start Mosquitto MQTT add-on
-  shell: ha add-on start core_mosquitto
-  become: true
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: "hassio addons start core_mosquitto"
+  register: mqtt_start
+  failed_when: false
+  changed_when: "'already running' not in mqtt_start.stderr"
+  when: not is_testing
+
+- name: Mock starting MQTT add-on in test mode
+  ansible.builtin.debug:
+    msg: "Would start Mosquitto MQTT add-on in test mode"
+  when: is_testing

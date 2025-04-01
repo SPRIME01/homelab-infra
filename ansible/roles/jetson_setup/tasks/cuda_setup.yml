@@ -1,56 +1,19 @@
 ---
-# CUDA setup tasks
+- name: Mock CUDA setup (test mode)
+  ansible.builtin.debug:
+    msg: "Would configure CUDA {{ jetson_setup_cuda_version }} in real mode"
+  when: ansible_check_mode or is_test_mode
 
-- name: Check if CUDA is already installed
-  stat:
-    path: /usr/local/cuda
-  register: cuda_installed
-
-- name: Check CUDA version if installed
-  shell: nvcc --version | grep -oP "release \K[0-9]+\.[0-9]+"
-  register: installed_cuda_version
-  when: cuda_installed.stat.exists and not ansible_check_mode
-  changed_when: false
-  ignore_errors: true
-
-- name: Configure CUDA environment variables
-  template:
+- name: Configure CUDA environment
+  ansible.builtin.template:
     src: cuda.sh.j2
     dest: /etc/profile.d/cuda.sh
-    owner: root
-    group: root
-    mode: 0644
-  ignore_errors: "{{ ansible_check_mode }}"
+    mode: "0o644"
+  when: not ansible_check_mode and not is_test_mode
 
-- name: Set up library paths for CUDA
-  template:
-    src: cuda-ldconfig.conf.j2
-    dest: /etc/ld.so.conf.d/cuda.conf
-    owner: root
-    group: root
-    mode: 0644
-  notify: run ldconfig
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Check if NVIDIA container runtime config exists
-  stat:
-    path: /etc/nvidia-container-runtime/config.toml
-  register: nvidia_config
-  ignore_errors: true
-
-- name: Configure GPU memory allocation
-  lineinfile:
-    path: /etc/nvidia-container-runtime/config.toml
-    regexp: '^#?\s*"nvidia-smi"'
-    line: '    "nvidia-smi" = ["-a", "--query-gpu=memory.total,memory.used,memory.free", "--format=csv,nounits,noheader"]'
+- name: Update PATH for CUDA
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: 'PATH=$PATH:/usr/local/cuda/bin'
     state: present
-  when: cuda_installed.stat.exists and nvidia_config.stat.exists and not ansible_check_mode
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Configure NVCC alternatives
-  alternatives:
-    name: cuda
-    link: /usr/bin/nvcc
-    path: /usr/local/cuda/bin/nvcc
-  when: cuda_installed.stat.exists and not ansible_check_mode
-  ignore_errors: "{{ ansible_check_mode }}"
+  when: not ansible_check_mode and not is_test_mode

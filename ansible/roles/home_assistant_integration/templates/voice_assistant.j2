@@ -1,5 +1,7 @@
 # Voice Assistant Configuration
-intents:
-  homeassistant.intents: ~
-default: true
-language: {{ voice_assistant_language }}
+voice:
+  intents:
+    homeassistant.intents: ~
+  default: true
+  language: {{ home_assistant_integration_voice_assistant_language }}
+  provider: {{ home_assistant_integration_voice_assistant_type }}

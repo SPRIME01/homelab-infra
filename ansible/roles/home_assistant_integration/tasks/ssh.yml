@@ -2,47 +2,51 @@
 # Tasks for SSH configuration
 
 - name: Install SSH add-on
-  shell: ha add-on install core_ssh
-  become: true
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: "hassio addons install a0d7b954_ssh"
   register: ssh_install
-  changed_when: "'Installed' in ssh_install.stdout"
+  failed_when: false
+  changed_when: "'already installed' not in ssh_install.stderr"
+  when: not is_testing
+
+- name: Accept SSH add-on license
+  ansible.builtin.lineinfile:
+    path: "{{ hassio_base_dir }}/addons/a0d7b954_ssh/options.json"
+    regexp: '"license": false'
+    line: '"license": true'
+    create: true
+    mode: '0644'
+  when: home_assistant_integration_ssh_accept_license | bool
 
 - name: Configure SSH add-on
-  template:
+  ansible.builtin.template:
     src: ssh.j2
-    dest: /config/ssh.yaml
-    owner: homeassistant
-    group: homeassistant
+    dest: "{{ config_base_dir }}/integrations/ssh.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0644'
-  become: true
-  notify: restart ssh
-
-- name: Ensure SSH authorized_keys directory exists
-  file:
-    path: /config/.ssh
-    state: directory
-    owner: homeassistant
-    group: homeassistant
-    mode: '0700'
-  become: true
+  become: "{{ not is_testing }}"
+  notify: Restart SSH
 
 - name: Add SSH authorized keys
-  template:
+  ansible.builtin.template:
     src: authorized_keys.j2
-    dest: /config/.ssh/authorized_keys
-    owner: homeassistant
-    group: homeassistant
+    dest: "{{ config_base_dir }}/.ssh/authorized_keys"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0600'
-  become: true
-  notify: restart ssh
+  become: "{{ not is_testing }}"
+  notify: Restart SSH
 
 - name: Start SSH add-on
-  shell: ha add-on start core_ssh
-  become: true
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: "hassio addons start a0d7b954_ssh"
+  register: ssh_start
+  failed_when: false
+  changed_when: "'already running' not in ssh_start.stderr"
+  when: not is_testing
 
-- name: Configure SSH port forwarding
-  shell: ha network open 22
-  become: true
-  ignore_errors: yes
+- name: Mock starting SSH add-on in test mode
+  ansible.builtin.debug:
+    msg: "Would start SSH add-on in test mode"
+  when: is_testing

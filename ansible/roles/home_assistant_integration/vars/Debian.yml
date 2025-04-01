@@ -1,0 +1,22 @@
+---
+# OS-specific variables for Debian-based systems
+home_assistant_integration_packages:
+  - python3-pip
+  - python3-dev
+  - libffi-dev
+  - libssl-dev
+  - libjpeg-dev
+  - zlib1g-dev
+  - autoconf
+  - build-essential
+  - libopenjp2-7
+  - libtiff5
+  - libturbojpeg0
+  - tzdata
+
+home_assistant_integration_service_name: home-assistant
+home_assistant_integration_user: homeassistant
+home_assistant_integration_group: homeassistant
+home_assistant_integration_config_dir: /usr/share/hassio/homeassistant
+home_assistant_integration_data_dir: /usr/share/hassio/homeassistant
+home_assistant_integration_venv_path: /srv/homeassistant

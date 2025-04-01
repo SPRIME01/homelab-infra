@@ -2,28 +2,29 @@
 # Default variables for home_assistant_integration role
 
 # MQTT configuration
-mqtt_broker_host: "{{ hostvars[groups['control_nodes'][0]]['ansible_host'] }}"
-mqtt_broker_port: 1883
-mqtt_username: homeassistant
-mqtt_password: "changeThisPassword"
-mqtt_discovery_prefix: homeassistant
+home_assistant_integration_mqtt_broker_host: "{{ groups['control_nodes'][0] | default('localhost') }}"
+home_assistant_integration_mqtt_broker_port: 1883
+home_assistant_integration_mqtt_username: homeassistant
+home_assistant_integration_mqtt_password: "changeThisPassword"
+home_assistant_integration_mqtt_discovery_prefix: homeassistant
 
 # InfluxDB configuration
-influxdb_host: "{{ hostvars[groups['control_nodes'][0]]['ansible_host'] }}"
-influxdb_port: 8086
-influxdb_database: home_assistant
-influxdb_username: homeassistant
-influxdb_password: "changeThisPassword"
-influxdb_retention_policy: "30d"
+home_assistant_integration_influxdb_host: "{{ groups['control_nodes'][0] | default('localhost') }}"
+home_assistant_integration_influxdb_port: 8086
+home_assistant_integration_influxdb_database: home_assistant
+home_assistant_integration_influxdb_username: homeassistant
+home_assistant_integration_influxdb_password: "changeThisPassword"
+home_assistant_integration_influxdb_retention_policy: "30d"
 
 # SSH configuration
-enable_ssh: true
-ssh_public_keys:
+home_assistant_integration_enable_ssh: true
+home_assistant_integration_ssh_public_keys:
   - "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+home_assistant_integration_user: "homeassistant"
 
 # Voice assistant configuration
-enable_voice_assistant: true
-voice_assistant_type: "local" # Options: local, cloud
-voice_assistant_language: "en-US"
-voice_assistant_wake_word: "Hey Home"
-voice_assistant_model: "vosk"
+home_assistant_integration_enable_voice_assistant: true
+home_assistant_integration_voice_assistant_type: "local"  # Options: local, cloud
+home_assistant_integration_voice_assistant_language: "en-US"
+home_assistant_integration_voice_assistant_wake_word: "Hey Home"
+home_assistant_integration_voice_assistant_model: "vosk"

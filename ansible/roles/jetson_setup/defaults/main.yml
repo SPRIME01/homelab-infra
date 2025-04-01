@@ -1,58 +1,38 @@
 ---
-# NVIDIA Jetson AGX Orin Configuration
+# Default values for the jetson_setup role
+# These are used for testing and can be overridden in the playbook
 
-# System optimization
-jetson_hostname: "jetson-agx-orin"
-jetson_timezone: "UTC"
-jetson_locale: "en_US.UTF-8"
-jetson_swap_size_mb: 8192
+# Required locales to be generated
+jetson_setup_required_locales:
+  - "en_US.UTF-8"
+  - "en_GB.UTF-8"
 
-# Power mode settings
-# Options: MAXN, 30W, 25W, 20W, 15W, 10W
-jetson_power_mode: "MAXN"
+# Default CUDA version
+jetson_setup_cuda_version: "11.4"
 
-# GPU memory settings (in MB)
-jetson_gpu_memory: 8192
+# Default ML libraries to install
+jetson_setup_ml_libraries:
+  - nvidia-tensorrt
+  - nvidia-cuda-dev
+  - nvidia-cuda-toolkit
 
-# CUDA and ML libraries versions
-cuda_version: "11.4"
-cudnn_version: "8.6"
-tensorrt_version: "8.5.2"
-opencv_version: "4.6.0"
+# Default monitoring tools
+jetson_setup_monitoring_packages:
+  - prometheus-node-exporter
+  - collectd
 
-# Container runtime settings
-nvidia_container_runtime: true
-nvidia_docker_repo_url: "https://nvidia.github.io/nvidia-docker/ubuntu22.04/nvidia-docker.list"
-nvidia_docker_repo_gpg_key: "https://nvidia.github.io/nvidia-docker/gpgkey"
-
-# Python setup for ML
-python_version: "3.10"
-python_venv_dir: "/opt/ml-env"
-python_packages:
+# Default Python ML packages
+jetson_setup_python_ml_packages:
+  - tensorflow
+  - pytorch
   - numpy
   - scipy
-  - matplotlib
   - pandas
-  - scikit-learn
-  - torch
-  - torchvision
-  - tensorflow
-  - jupyterlab
+  - matplotlib
+  - jupyter
 
-# System packages
-system_packages:
-  - build-essential
-  - git
-  - cmake
-  - python3-pip
-  - python3-dev
-  - python3-venv
-  - lm-sensors
-  - htop
-  - iotop
-  - nvtop
-  - apt-transport-https
-  - ca-certificates
-  - curl
-  - gnupg
-  - lsb-release
+# Default container runtime
+jetson_setup_container_runtime: "docker"
+
+# Default power mode
+jetson_setup_power_mode: "balanced"

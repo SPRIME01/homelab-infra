@@ -2,40 +2,41 @@
 # Tasks for InfluxDB configuration
 
 - name: Install InfluxDB add-on
-  shell: ha add-on install a0d7b954_influxdb
-  become: true
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: "hassio addons install 5ba9ddb2_influxdb"
   register: influxdb_install
-  changed_when: "'Installed' in influxdb_install.stdout"
+  failed_when: false
+  changed_when: "'already installed' not in influxdb_install.stderr"
+  when: not is_testing
+
+- name: Accept InfluxDB add-on license
+  ansible.builtin.lineinfile:
+    path: "{{ hassio_base_dir }}/addons/5ba9ddb2_influxdb/options.json"
+    regexp: '"license": false'
+    line: '"license": true'
+    create: true
+    mode: '0644'
+  when: home_assistant_integration_influxdb_accept_license | bool
 
 - name: Configure InfluxDB add-on
-  template:
+  ansible.builtin.template:
     src: influxdb.j2
-    dest: /config/influxdb.yaml
-    owner: homeassistant
-    group: homeassistant
+    dest: "{{ config_base_dir }}/integrations/influxdb.yaml"
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0644'
-  become: true
-
-- name: Configure InfluxDB integration in Home Assistant
-  template:
-    src: influxdb_integration.j2
-    dest: /config/integrations/influxdb.yaml
-    owner: homeassistant
-    group: homeassistant
-    mode: '0644'
-  become: true
-  notify: restart home assistant
-
-- name: Ensure InfluxDB integration is included in configuration
-  lineinfile:
-    path: /config/configuration.yaml
-    line: "influxdb: !include integrations/influxdb.yaml"
-    state: present
-  become: true
-  notify: reload home assistant configuration
+  become: "{{ not is_testing }}"
+  notify: Reload Home Assistant Configuration
 
 - name: Start InfluxDB add-on
-  shell: ha add-on start a0d7b954_influxdb
-  become: true
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: "hassio addons start 5ba9ddb2_influxdb"
+  register: influxdb_start
+  failed_when: false
+  changed_when: "'already running' not in influxdb_start.stderr"
+  when: not is_testing
+
+- name: Mock starting InfluxDB add-on in test mode
+  ansible.builtin.debug:
+    msg: "Would start InfluxDB add-on in test mode"
+  when: is_testing

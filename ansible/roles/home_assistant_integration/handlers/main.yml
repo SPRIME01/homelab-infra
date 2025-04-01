@@ -1,29 +1,61 @@
 ---
 # Handlers for home_assistant_integration role
 
-- name: restart home assistant
-  service:
+- name: Restart Home Assistant
+  ansible.builtin.debug:
+    msg: "Would restart Home Assistant service"
+  when: is_testing | default(false) | bool
+  listen: Restart Home Assistant
+
+- name: Restart Home Assistant
+  ansible.builtin.service:
     name: home-assistant
     state: restarted
   become: true
+  when: not (is_testing | default(false) | bool)
+  listen: Restart Home Assistant
 
-- name: restart mosquitto
-  service:
+- name: Restart Mosquitto
+  ansible.builtin.debug:
+    msg: "Would restart Mosquitto service"
+  when: is_testing | default(false) | bool
+  listen: Restart Mosquitto
+
+- name: Restart Mosquitto
+  ansible.builtin.service:
     name: mosquitto
     state: restarted
   become: true
+  when: not (is_testing | default(false) | bool)
+  listen: Restart Mosquitto
 
-- name: restart ssh
-  service:
-    name: sshd
+- name: Restart SSH
+  ansible.builtin.debug:
+    msg: "Would restart SSH service"
+  when: is_testing | default(false) | bool
+  listen: Restart SSH
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
     state: restarted
   become: true
+  when: not (is_testing | default(false) | bool)
+  listen: Restart SSH
 
-- name: reload home assistant configuration
-  uri:
-    url: "http://localhost:8123/api/services/homeassistant/reload_core_config"
+- name: Reload Home Assistant Configuration
+  ansible.builtin.debug:
+    msg: "Would reload Home Assistant configuration"
+  when: is_testing | default(false) | bool
+  listen: Reload Home Assistant Configuration
+
+- name: Reload Home Assistant Configuration
+  ansible.builtin.uri:
+    url: "http://localhost:8123/api/config/reload"
     method: POST
     headers:
       Authorization: "Bearer {{ home_assistant_token }}"
     status_code: 200
   become: false
+  when: not (is_testing | default(false) | bool)
+  listen: Reload Home Assistant Configuration

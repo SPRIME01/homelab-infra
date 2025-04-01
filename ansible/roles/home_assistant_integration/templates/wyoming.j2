@@ -1,7 +1,23 @@
 # Wyoming Add-on Configuration
 stt: vosk
 tts: piper
-wake_word: {{ voice_assistant_wake_word }}
-language: {{ voice_assistant_language }}
+wake_word: {{ home_assistant_integration_voice_assistant_wake_word }}
+language: {{ home_assistant_integration_voice_assistant_language }}
 sensitivity: 0.5
-model: {{ voice_assistant_model }}
+model: {{ home_assistant_integration_voice_assistant_model }}
+
+# Wyoming Integration configuration
+streaming:
+  timeout: 15
+satellite:
+  name: "{{ inventory_hostname }}"
+  host: "localhost"
+  port: 10700
+wake_words:
+  timeout: 3
+  confidence_threshold: 0.5
+speech_to_text:
+  timeout: 10
+  model: "{{ home_assistant_integration_voice_assistant_model }}"
+text_to_speech:
+  voice: "default"

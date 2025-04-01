@@ -1,9 +1,9 @@
-# InfluxDB Integration Configuration
-host: {{ influxdb_host }}
-port: {{ influxdb_port }}
-database: {{ influxdb_database }}
-username: {{ influxdb_username }}
-password: {{ influxdb_password }}
+# InfluxDB integration configuration
+host: {{ home_assistant_integration_influxdb_host }}
+port: {{ home_assistant_integration_influxdb_port }}
+database: {{ home_assistant_integration_influxdb_database }}
+username: {{ home_assistant_integration_influxdb_username }}
+password: {{ home_assistant_integration_influxdb_password }}
 max_retries: 3
 default_measurement: state
 include:

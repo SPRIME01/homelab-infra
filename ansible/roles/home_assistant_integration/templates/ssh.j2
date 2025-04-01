@@ -1,8 +1,11 @@
+# Mock SSH configuration
+enable: true
+port: 22
+
 # SSH Add-on Configuration
 authorized_keys:
-{% for key in ssh_public_keys %}
+{% for key in home_assistant_integration_ssh_public_keys %}
   - {{ key }}
 {% endfor %}
 password: ''
-port: 22
-username: homeassistant
+username: {{ home_assistant_integration_user }}

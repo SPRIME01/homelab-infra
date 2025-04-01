@@ -1,60 +1,55 @@
 ---
-# Main tasks file for home_assistant_integration role
+- name: Set facts for testing environment
+  ansible.builtin.set_fact:
+    ansible_os_family: "{{ ansible_os_family | default('Debian') }}"
+  when: home_assistant_integration_testing | default(false) | bool
 
-- name: Include OS-specific variables
-  include_vars: "{{ ansible_os_family }}.yml"
-  when: ansible_os_family is defined
-  ignore_errors: yes
+- name: Include variables
+  ansible.builtin.include_vars:
+    file: "{{ ansible_os_family }}.yml"
 
-- name: Check if Home Assistant is installed
-  stat:
-    path: "/usr/share/hassio"
-  register: ha_installed
-  become: true
+- name: Set base directories
+  ansible.builtin.set_fact:
+    config_base_dir: "{{ config_base_dir | default('/config') }}"
+    hassio_base_dir: "{{ hassio_base_dir | default('/usr/share/hassio') }}"
+    is_testing: "{{ home_assistant_integration_testing | default(false) | bool }}"
+    home_assistant_integration_user: "{{ home_assistant_integration_user | default('homeassistant') }}"
 
-- name: Fail if Home Assistant is not installed
-  fail:
-    msg: "Home Assistant is not installed. Please install Home Assistant OS first."
-  when: not ha_installed.stat.exists
+- name: Set file ownership variables
+  ansible.builtin.set_fact:
+    file_owner: "{{ is_testing | ternary(ansible_user_id, home_assistant_integration_user) }}"
+    file_group: "{{ is_testing | ternary(ansible_user_gid, home_assistant_integration_user) }}"
 
-- name: Create Home Assistant configuration directory
-  file:
-    path: /config
+- name: Create integrations directory
+  ansible.builtin.file:
+    path: "{{ config_base_dir }}/integrations"
     state: directory
-    owner: homeassistant
-    group: homeassistant
-    mode: '0755'
-  become: true
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
+    mode: "0755"
+  become: "{{ not is_testing }}"
 
-- name: Generate Home Assistant API token
-  uri:
-    url: "http://localhost:8123/auth/token"
-    method: POST
-    body_format: json
-    body:
-      client_id: "ansible-automation"
-      client_name: "Ansible Automation"
-    status_code: 200
-  register: token_response
-  become: false
-  ignore_errors: yes
+- name: Create SSH directory
+  ansible.builtin.file:
+    path: "{{ config_base_dir }}/.ssh"
+    state: directory
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
+    mode: "0700"
+  become: "{{ not is_testing }}"
 
-- name: Set Home Assistant token
-  set_fact:
-    home_assistant_token: "{{ token_response.json.access_token }}"
-  when: token_response is success
-  ignore_errors: yes
+- name: Configure Home Assistant MQTT integration
+  ansible.builtin.include_tasks: mqtt.yml
+  when: home_assistant_integration_enable_mqtt | default(false) | bool
 
-- name: Include MQTT setup tasks
-  include_tasks: mqtt.yml
+- name: Configure Home Assistant SSH integration
+  ansible.builtin.include_tasks: ssh.yml
+  when: home_assistant_integration_enable_ssh | default(false) | bool
 
-- name: Include InfluxDB setup tasks
-  include_tasks: influxdb.yml
+- name: Configure Home Assistant InfluxDB integration
+  ansible.builtin.include_tasks: influxdb.yml
+  when: home_assistant_integration_enable_influxdb | default(false) | bool
 
-- name: Include SSH setup tasks
-  include_tasks: ssh.yml
-  when: enable_ssh | bool
-
-- name: Include voice assistant setup tasks
-  include_tasks: voice_assistant.yml
-  when: enable_voice_assistant | bool
+- name: Configure Home Assistant Voice Assistant integration
+  ansible.builtin.include_tasks: voice_assistant.yml
+  when: home_assistant_integration_enable_voice_assistant | default(false) | bool

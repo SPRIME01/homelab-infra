@@ -1,50 +1,16 @@
 ---
-# Power optimization tasks
-- name: Check current power mode
-  ansible.builtin.shell: |
-    nvpmodel -q | grep -oP '(?<=NV Power Mode: )[A-Z0-9]+'
-  register: current_power_mode
-  changed_when: false
-  when: not ansible_check_mode
-  ignore_errors: "{{ ansible_check_mode }}"
+- name: Mock power optimization (test mode)
+  ansible.builtin.debug:
+    msg: "Would configure power settings in real mode"
+  when: ansible_check_mode or is_test_mode
 
-- name: Set power mode
-  ansible.builtin.command: nvpmodel -m {{ power_mode_map[jetson_power_mode] }}
-  when: not ansible_check_mode and current_power_mode is defined and current_power_mode.stdout != jetson_power_mode
-  vars:
-    power_mode_map:
-      MAXN: 0
-      30W: 1
-      25W: 2
-      20W: 3
-      15W: 4
-      10W: 5
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Check if fan control is enabled
-  ansible.builtin.stat:
-    path: /sys/devices/pwm-fan/temp_control
-  register: fan_control_file
-  ignore_errors: "{{ ansible_check_mode }}"
+- name: Configure power mode
+  ansible.builtin.command: nvpmodel -m "{{ jetson_setup_power_mode }}"
+  when: not ansible_check_mode and not is_test_mode
 
 - name: Enable fan control
-  ansible.builtin.copy:
-    content: "1"
-    dest: /sys/devices/pwm-fan/temp_control
-  when: not ansible_check_mode and fan_control_file.stat.exists
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Configure CPU governor
-  ansible.builtin.copy:
-    content: "performance"
-    dest: "/sys/devices/system/cpu/cpu{{ item }}/cpufreq/scaling_governor"
-  with_sequence: count={{ ansible_processor_cores | default(1) }}
-  when: not ansible_check_mode and jetson_power_mode == "MAXN" and ansible_processor_cores is defined
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Configure GPU frequency (maximum performance)
-  ansible.builtin.shell: |
-    echo 1 > /sys/devices/gpu.0/force_idle
-    echo 1 > /sys/devices/gpu.0/railgate_enable
-  when: not ansible_check_mode and jetson_power_mode == "MAXN"
-  ignore_errors: "{{ ansible_check_mode }}"
+  ansible.builtin.service:
+    name: nvfancontrol
+    state: started
+    enabled: yes
+  when: not ansible_check_mode and not is_test_mode

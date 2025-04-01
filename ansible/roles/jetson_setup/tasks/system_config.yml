@@ -1,74 +1,56 @@
 ---
 # System configuration tasks
 
-- name: Set hostname
-  hostname:
-    name: "{{ jetson_hostname }}"
-  notify: update hosts file
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Set timezone
-  community.general.timezone:
-    name: "{{ jetson_timezone }}"
-  ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Generate locale
-  locale_gen:
-    name: "{{ jetson_locale }}"
+- name: Generate required locales
+  community.general.locale_gen:
+    name: "{{ item }}"
     state: present
-  ignore_errors: "{{ ansible_check_mode }}"
+  with_items: "{{ jetson_setup_required_locales }}"
+  when: not ansible_check_mode
 
-- name: Configure swap
-  block:
-    - name: Check if swap file exists
-      stat:
-        path: /swapfile
-      register: swap_file
+- name: Mock swap file operations (test mode)
+  ansible.builtin.debug:
+    msg: "Would configure swap in real mode"
+  when: ansible_check_mode or is_test_mode
 
-    - name: Create swap file
-      command: dd if=/dev/zero of=/swapfile bs=1M count={{ jetson_swap_size_mb }}
-      when: not swap_file.stat.exists and not ansible_check_mode
-      ignore_errors: "{{ ansible_check_mode }}"
+- name: Check if swap file exists
+  ansible.builtin.stat:
+    path: /swapfile
+  register: swap_file_check
+  when: not ansible_check_mode and not is_test_mode
 
-    - name: Set swap file permissions
-      file:
-        path: /swapfile
-        mode: 0600
-      when: not swap_file.stat.exists and not ansible_check_mode
-      ignore_errors: "{{ ansible_check_mode }}"
+- name: Create swap file
+  ansible.builtin.command: dd if=/dev/zero of=/swapfile bs=1M count=8192
+  args:
+    creates: /swapfile
+  when: not swap_file_check.stat.exists and not ansible_check_mode and not is_test_mode
 
-    - name: Make swap
-      command: mkswap /swapfile
-      when: not swap_file.stat.exists and not ansible_check_mode
-      ignore_errors: "{{ ansible_check_mode }}"
-
-    - name: Enable swap
-      command: swapon /swapfile
-      when: not swap_file.stat.exists and not ansible_check_mode
-      ignore_errors: "{{ ansible_check_mode }}"
-
-    - name: Add swap to fstab
-      lineinfile:
-        path: /etc/fstab
-        line: "/swapfile none swap sw 0 0"
-        state: present
-      when: not swap_file.stat.exists and not ansible_check_mode
-      ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Configure sysctl for AI workloads
-  template:
-    src: sysctl-ai.conf.j2
-    dest: /etc/sysctl.d/99-ai-workloads.conf
+- name: Set swap file permissions
+  ansible.builtin.file:
+    path: /swapfile
     owner: root
     group: root
-    mode: 0644
-  notify: reload sysctl
+    mode: "0o600"
+  when: not ansible_check_mode and not is_test_mode
 
-- name: Configure I/O scheduler
-  template:
-    src: io-scheduler.conf.j2
-    dest: /etc/udev/rules.d/60-io-scheduler.rules
-    owner: root
-    group: root
-    mode: 0644
-  notify: reload udev
+- name: Make swap
+  ansible.builtin.command: mkswap /swapfile
+  when: not ansible_check_mode and not is_test_mode
+
+- name: Enable swap
+  ansible.builtin.command: swapon /swapfile
+  when: not ansible_check_mode and not is_test_mode
+
+- name: Add swap to fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/swapfile none swap sw 0 0"
+    state: present
+  when: not ansible_check_mode and not is_test_mode
+
+- name: Configure system settings
+  ansible.builtin.template:
+    src: sysctl.conf.j2
+    dest: /etc/sysctl.d/99-jetson.conf
+    mode: "0o644"
+  when: not ansible_check_mode and not is_test_mode

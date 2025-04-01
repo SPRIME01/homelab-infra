@@ -1,37 +1,45 @@
 ---
-# Handlers for jetson_setup role
-
-- name: update hosts file
-  template:
+- name: Update Hosts File
+  ansible.builtin.template:
     src: hosts.j2
     dest: /etc/hosts
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
+  become: true
 
-- name: reload sysctl
-  command: sysctl --system
+- name: Reload Sysctl
+  ansible.builtin.command: sysctl --system
+  become: true
+  changed_when: false
 
-- name: reload udev
-  command: udevadm control --reload-rules && udevadm trigger
+- name: Reload Udev
+  ansible.builtin.command: udevadm control --reload-rules && udevadm trigger
+  become: true
+  changed_when: false
 
-- name: run ldconfig
-  command: ldconfig
+- name: Run Ldconfig
+  ansible.builtin.command: ldconfig
+  become: true
+  changed_when: false
 
-- name: restart docker
-  systemd:
+- name: Restart Docker
+  ansible.builtin.systemd:
     name: docker
     state: restarted
-    daemon_reload: yes
+    enabled: true
+  become: true
 
-- name: restart containerd
-  systemd:
+- name: Restart Containerd
+  ansible.builtin.systemd:
     name: containerd
     state: restarted
-    daemon_reload: yes
+    enabled: true
+  become: true
 
-- name: restart jetson-stats
-  systemd:
+- name: Restart Jetson-stats
+  ansible.builtin.systemd:
     name: jetson-stats
     state: restarted
-    daemon_reload: yes
+    enabled: true
+  become: true
