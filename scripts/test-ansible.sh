@@ -7,7 +7,7 @@ set -e
 # Default configuration
 LOG_DIR=$(dirname "$0")/../logs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-LOG_FILE="$LOG_DIR/ansible-test-$TIMESTAMP.log"
+LOG_FILE="/home/sprime01/homelab/homelab-infra/logs/ansible-test-$(date +%Y%m%d-%H%M%S).log"
 SUMMARY_FILE="$LOG_DIR/ansible-test-summary-$TIMESTAMP.txt"
 ANSIBLE_ROLES_DIR=$(dirname "$0")/../ansible/roles
 WORKING_DIR=$(dirname "$0")/..
@@ -253,23 +253,42 @@ test_role() {
                     ;;
                 "dry-run")
                     log "INFO" "Running ansible-playbook with dry-run (--check) for $role"
-                    ./scripts/test-k3s-server.sh --check >> "$LOG_FILE" 2>&1
-                    if [ $? -eq 0 ]; then
+                    
+                    # Create a separator in the log file for better readability
+                    echo "===== START OF K3S SERVER DRY-RUN TEST OUTPUT =====" | tee -a "$LOG_FILE"
+                    
+                    # Execute the script and capture both output and exit status
+                    # tee command to capture output both to log file and terminal
+                    ./scripts/test-k3s-server.sh --check --verbose 2>&1 | tee -a "$LOG_FILE"
+                    k3s_test_exit_code=${PIPESTATUS[0]}
+                    
+                    echo "===== END OF K3S SERVER DRY-RUN TEST OUTPUT =====" | tee -a "$LOG_FILE"
+                    
+                    if [ $k3s_test_exit_code -eq 0 ]; then
                         log "TEST" "✅ Dry-run: $role: PASS"
                         ((passed_stages++))
                     else
-                        log "TEST" "❌ Dry-run: $role: FAIL - See log for details"
+                        log "TEST" "❌ Dry-run: $role: FAIL - Exit code: $k3s_test_exit_code"
                         ((errors++))
                     fi
                     ;;
                 "run")
                     log "INFO" "Running full test for $role"
-                    ./scripts/test-k3s-server.sh >> "$LOG_FILE" 2>&1
-                    if [ $? -eq 0 ]; then
+                    
+                    # Create a separator in the log file for better readability
+                    echo "===== START OF K3S SERVER TEST OUTPUT =====" | tee -a "$LOG_FILE"
+                    
+                    # Execute the script and capture both output and exit status
+                    ./scripts/test-k3s-server.sh --verbose 2>&1 | tee -a "$LOG_FILE"
+                    k3s_test_exit_code=${PIPESTATUS[0]}
+                    
+                    echo "===== END OF K3S SERVER TEST OUTPUT =====" | tee -a "$LOG_FILE"
+                    
+                    if [ $k3s_test_exit_code -eq 0 ]; then
                         log "TEST" "✅ Run: $role: PASS"
                         ((passed_stages++))
                     else
-                        log "TEST" "❌ Run: $role: FAIL - See log for details"
+                        log "TEST" "❌ Run: $role: FAIL - Exit code: $k3s_test_exit_code"
                         ((errors++))
                     fi
                     ;;
@@ -337,6 +356,25 @@ test_role() {
     else
         return 0
     fi
+}
+
+# Ensure the logs directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# When running ansible-playbook with dry-run, capture the output to a detailed log file
+run_ansible_playbook_dryrun() {
+  local role=$1
+  local detailed_log_file="${LOG_DIR}/ansible-${role}-detailed-$(date +%Y%m%d-%H%M%S).log"
+  
+  log_info "Running ansible-playbook with dry-run (--check) for $role"
+  # Execute ansible-playbook and capture output to both console and log file
+  ansible-playbook -i "${role}/tests/inventory" "${role}/tests/test.yml" --check -v | tee "$detailed_log_file"
+  
+  if [ ${PIPESTATUS[0]} -eq 0 ]; then
+    log_test_result "Dry-run" "$role" "PASS"
+  else
+    log_test_result "Dry-run" "$role" "FAIL" "- See log for details at $detailed_log_file"
+  fi
 }
 
 # Process command-line arguments

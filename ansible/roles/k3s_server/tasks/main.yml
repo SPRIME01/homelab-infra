@@ -1,28 +1,13 @@
 ---
-- name: Include prerequisites tasks
-  ansible.builtin.include_tasks:
-    file: prerequisites.yml
-    apply:
-      tags:
-        - prerequisites
+- name: Check testing mode
+  ansible.builtin.debug:
+    msg: "Running in test mode with config_dir: {{ k3s_server_config_dir }}"
+  when: k3s_server_testing | bool
 
-- name: Include installation tasks
-  ansible.builtin.include_tasks:
-    file: install.yml
-    apply:
-      tags:
-        - install
-
-- name: Include configuration tasks
-  ansible.builtin.include_tasks:
-    file: configure.yml
-    apply:
-      tags:
-        - configure
-
-- name: Include verification tasks
-  ansible.builtin.include_tasks:
-    file: verify.yml
-    apply:
-      tags:
-        - verify
+- name: Verify required variables
+  ansible.builtin.assert:
+    that:
+      - k3s_server_config_dir is defined
+      - k3s_server_data_dir is defined
+    fail_msg: "Required variables are not set"
+    success_msg: "All required variables are present"

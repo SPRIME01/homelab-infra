@@ -1,27 +1,43 @@
 ---
 - name: Setup test environment
-  when: k3s_server_testing
+  when: k3s_server_testing | bool
   block:
-    - name: Create mock directories
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: '0755'
-      loop:
-        - "{{ k3s_server_data_dir }}"
-        - "{{ k3s_server_data_dir }}/server"
-        - "{{ k3s_server_config_dir }}"
-        - "{{ k3s_server_config_dir }}/server"
-        - "{{ k3s_server_config_dir }}/manifests"
+    - name: Mock k3s binary path
+      ansible.builtin.set_fact:
+        k3s_server_binary: "/tmp/k3s-test/usr/local/bin/k3s"
 
-    - name: Create mock node token
+    - name: Mock k3s server paths
+      ansible.builtin.set_fact:
+        k3s_server_config_dir: "/tmp/k3s-test/etc/rancher/k3s"
+        k3s_server_data_dir: "/tmp/k3s-test/var/lib/rancher/k3s"
+
+    - name: Mock systemd paths
+      ansible.builtin.set_fact:
+        k3s_server_service_file: "/tmp/k3s-test/etc/systemd/system/k3s.service"
+
+    - name: Create mock systemd service file
       ansible.builtin.copy:
-        content: "K10mock::server:token-for-test-{{ 9999999999 | random }}"
-        dest: "{{ k3s_server_token_file }}"
-        mode: '0600'
+        content: |
+          [Unit]
+          Description=Lightweight Kubernetes (K3s) - Server
+          Documentation=https://k3s.io
+          After=network-online.target
 
-    - name: Create mock kubeconfig
-      ansible.builtin.template:
-        src: test_kubeconfig.j2
-        dest: "{{ k3s_server_kubeconfig_file }}"
+          [Service]
+          Type=notify
+          ExecStart=/usr/local/bin/k3s server
+          KillMode=process
+          Delegate=yes
+          LimitNOFILE=1048576
+          LimitNPROC=infinity
+          LimitCORE=infinity
+          TasksMax=infinity
+          TimeoutStartSec=0
+          Restart=always
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: "{{ k3s_server_service_file }}"
         mode: '0644'
+      when: not ansible_check_mode

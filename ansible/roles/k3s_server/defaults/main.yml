@@ -43,3 +43,5 @@ k3s_server_enable_metrics_server: true
 k3s_server_testing: false
 k3s_server_mock_token: "K10aec3d6cfdad915d2c41a9f4cf1c319add2222f97d154addd1a8d0e890::server:mock-token-for-testing"
 k3s_server_skip_service_check: false
+k3s_server_skip_download: false  # Set to true during testing to avoid actual downloads
+k3s_server_skip_service: false   # Set to true during testing to avoid actual service management

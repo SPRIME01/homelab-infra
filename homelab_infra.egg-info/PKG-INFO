@@ -3,7 +3,7 @@ Name: homelab-infra
 Version: 0.1.0
 Summary: Homelab infrastructure as code
 Author-email: Samuel Prime <sprime01@gmail.com>
-Requires-Python: >=3.8
+Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: ansible>=9.0.0
@@ -14,6 +14,11 @@ Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: black>=23.0.0; extra == "dev"
 Requires-Dist: isort>=5.0.0; extra == "dev"
+Requires-Dist: molecule>=3.0.0; extra == "dev"
+Requires-Dist: molecule-docker>=2.0.0; extra == "dev"
+Requires-Dist: docker>=6.0.0; extra == "dev"
+Requires-Dist: requests>=2.25.0; extra == "dev"
+Requires-Dist: selinux>=0.3.0; extra == "dev"
 Dynamic: license-file
 
 # 🏠 Homelab Infrastructure Repository

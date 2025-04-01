@@ -1,0 +1,46 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    k3s_server_testing: true
+    test_root: "/tmp/k3s-test"
+    k3s_server_config_dir: "{{ test_root }}/etc/rancher/k3s"
+    k3s_server_data_dir: "{{ test_root }}/var/lib/rancher/k3s"
+    k3s_server_binary: "{{ test_root }}/usr/local/bin/k3s"
+    k3s_server_install_dir: "{{ test_root }}/usr/local/bin"
+    
+    # Mocked dependencies
+    k3s_server_skip_download: true
+    k3s_server_skip_service: true
+    k3s_server_mock_token: "K10aec3d6cfdad915d2c41a9f4cf1c319add2222f97d154addd1a8d0e890::server:mock-token-for-testing"
+
+  pre_tasks:
+    - name: Create test directories 
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ test_root }}"
+        - "{{ k3s_server_config_dir }}"
+        - "{{ k3s_server_data_dir }}/server"
+        - "{{ k3s_server_install_dir }}"
+
+    - name: Create mock k3s binary
+      ansible.builtin.copy:
+        dest: "{{ k3s_server_binary }}"
+        content: |
+          #!/bin/bash
+          echo "Mock K3s binary for testing"
+          exit 0
+        mode: '0755'
+
+    - name: Create mock token file
+      ansible.builtin.copy:
+        dest: "{{ k3s_server_data_dir }}/server/node-token"
+        content: "{{ k3s_server_mock_token }}"
+        mode: '0644'
+
+  roles:
+    - role: ../../

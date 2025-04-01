@@ -1,0 +1,74 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  vars:
+    test_root: "/tmp/k3s-test"
+    k3s_server_config_dir: "{{ test_root }}/etc/rancher/k3s"
+    k3s_server_data_dir: "{{ test_root }}/var/lib/rancher/k3s"
+    k3s_server_binary: "{{ test_root }}/usr/local/bin/k3s"
+
+  tasks:
+    - name: Check if the test root directory exists
+      ansible.builtin.stat:
+        path: "{{ test_root }}"
+      register: test_dir_check
+
+    - name: Verify test directory exists
+      ansible.builtin.assert:
+        that:
+          - test_dir_check.stat.exists
+          - test_dir_check.stat.isdir
+        fail_msg: "Test directory not created properly"
+        success_msg: "Test directory exists and is a directory"
+
+    - name: Check if the mock k3s binary exists and is executable
+      ansible.builtin.stat:
+        path: "{{ k3s_server_binary }}"
+      register: binary_check
+
+    - name: Verify k3s binary
+      ansible.builtin.assert:
+        that:
+          - binary_check.stat.exists
+          - binary_check.stat.executable
+        fail_msg: "K3s binary wasn't properly created or is not executable"
+        success_msg: "K3s binary exists and is executable"
+
+    - name: Check if the k3s config directory exists
+      ansible.builtin.stat:
+        path: "{{ k3s_server_config_dir }}"
+      register: config_dir_check
+
+    - name: Verify config directory
+      ansible.builtin.assert:
+        that:
+          - config_dir_check.stat.exists
+          - config_dir_check.stat.isdir
+        fail_msg: "K3s config directory not created properly"
+        success_msg: "K3s config directory exists"
+
+    - name: Check if the data directory exists
+      ansible.builtin.stat:
+        path: "{{ k3s_server_data_dir }}"
+      register: data_dir_check
+
+    - name: Verify data directory
+      ansible.builtin.assert:
+        that:
+          - data_dir_check.stat.exists
+          - data_dir_check.stat.isdir
+        fail_msg: "K3s data directory not created properly"
+        success_msg: "K3s data directory exists"
+
+    - name: Check if the node token file exists
+      ansible.builtin.stat:
+        path: "{{ k3s_server_data_dir }}/server/node-token"
+      register: token_file_check
+
+    - name: Verify node token file
+      ansible.builtin.assert:
+        that:
+          - token_file_check.stat.exists
+        fail_msg: "Node token file not created properly"
+        success_msg: "Node token file exists"

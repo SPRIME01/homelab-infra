@@ -2,24 +2,51 @@
 
 set -e
 
-# Check if we're in check mode
+# Parse command line options
 CHECK_MODE=false
-if [[ "$1" == "--check" ]]; then
-  CHECK_MODE=true
-fi
+VERBOSE=false
+
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --check) CHECK_MODE=true; shift ;;
+    --verbose) VERBOSE=true; shift ;;
+    *) echo "Unknown parameter: $1"; exit 1 ;;
+  esac
+done
 
 # Function to handle errors
 handle_error() {
-  echo "Error: Test execution failed!"
+  local exit_code=$?
+  echo "Error: Test execution failed with exit code $exit_code!"
+  echo "Command that failed: $BASH_COMMAND"
   # Ensure cleanup happens even on error
+  cleanup
+  exit $exit_code
+}
+
+# Cleanup function to ensure we remove temporary files
+cleanup() {
+  echo "Running cleanup..."
   if [ -f "/etc/sudoers.d/k3s-test-temp" ]; then
     sudo rm -f "/etc/sudoers.d/k3s-test-temp"
+    echo "Temporary sudo privileges removed"
   fi
-  exit 1
+  
+  if [ -f "/tmp/test-inventory.yml" ]; then
+    rm -f /tmp/test-inventory.yml
+    echo "Temporary inventory removed"
+  fi
+  
+  if [ -f "/etc/systemd/system/k3s.service" ] && [ "$CHECK_MODE" != "true" ]; then
+    sudo systemctl stop k3s.service 2>/dev/null || true
+    sudo rm -f /etc/systemd/system/k3s.service
+    echo "Mock k3s service removed"
+  fi
 }
 
 # Set trap for error handling
 trap handle_error ERR
+trap cleanup EXIT
 
 # Setup temporary NOPASSWD sudo for testing
 setup_sudo_nopasswd() {
@@ -38,15 +65,6 @@ EOF
   fi
 }
 
-# Clean up temporary sudo configuration
-cleanup_sudo() {
-  echo "Cleaning up temporary sudo configuration..."
-  if [ -f "/etc/sudoers.d/k3s-test-temp" ]; then
-    sudo rm -f "/etc/sudoers.d/k3s-test-temp"
-    echo "Temporary sudo privileges removed"
-  fi
-}
-
 # Create a temporary inventory file for testing
 create_test_inventory() {
   echo "Creating temporary test inventory..."
@@ -61,80 +79,89 @@ all:
 EOF
 }
 
-# Create a mock k3s service that appears active in testing
+# Create mock systemd service for K3s
 create_mock_service() {
-  echo "Creating mock k3s service for testing..."
-  sudo mkdir -p /etc/systemd/system/
-  sudo bash -c 'cat > /etc/systemd/system/k3s.service << EOF
+  if [ "$CHECK_MODE" != "true" ]; then
+    echo "Creating mock k3s systemd service for testing..."
+    sudo tee /etc/systemd/system/k3s.service > /dev/null << EOF
 [Unit]
-Description=Mock K3s for Testing
+Description=Lightweight Kubernetes
+Documentation=https://k3s.io
 Wants=network-online.target
 After=network-online.target
 
 [Service]
-Type=simple
-ExecStart=/bin/bash -c "while true; do sleep 1; done"
+Type=notify
+ExecStart=/usr/local/bin/k3s server
+KillMode=process
+Delegate=yes
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TasksMax=infinity
+TimeoutStartSec=0
 Restart=always
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
-EOF'
-
-  # Start the mock service - this avoids actual activation
-  if [ "$CHECK_MODE" != "true" ]; then
-    sudo systemctl daemon-reload
-    sudo systemctl start k3s.service || true
+EOF
+    echo "Mock k3s service created"
   fi
 }
 
-# Run the test without sudo password prompt
+# Main test runner
 run_test() {
   echo "Running K3s server tests in ${CHECK_MODE} mode..."
-
+  
+  # Ensure we're in the correct directory
+  cd "$(dirname "$0")/.." || exit 1
+  echo "Working directory: $(pwd)"
+  
   # Create test inventory
   create_test_inventory
-
-  # Setup temporary sudo
+  
+  # Set up sudo access
   setup_sudo_nopasswd
-
+  
   # Create mock service
   create_mock_service
 
-  # Set environment variables to avoid password prompts
+  # Set environment variables
   export ANSIBLE_HOST_KEY_CHECKING=False
   export ANSIBLE_BECOME_ASK_PASS=False
-
-  # Run the tests
+  export ANSIBLE_FORCE_COLOR=1
+  export ANSIBLE_VERBOSITY=3
+  export ANSIBLE_LOG_PATH="/tmp/ansible-k3s-test.log"
+  
+  echo "Running ansible-playbook with inventory: $(cat /tmp/test-inventory.yml)"
+  
+  # Run the tests with full debugging
   if [ "$CHECK_MODE" = true ]; then
+    echo "Executing ansible-playbook in check mode..."
+    
     ansible-playbook \
       -i /tmp/test-inventory.yml \
       ansible/roles/k3s_server/tests/test.yml \
       --check \
       --diff \
+      -vvv \
+      --log-path "${ANSIBLE_LOG_PATH}" \
       -e "k3s_server_testing=true" \
       -e "ansible_check_mode=true" \
-      -vv
-  else
-    ansible-playbook \
-      -i /tmp/test-inventory.yml \
-      ansible/roles/k3s_server/tests/test.yml \
-      -e "k3s_server_testing=true" \
-      -vv
+      -e "ansible_python_interpreter=$(which python3)" || {
+        local exit_code=$?
+        echo "Ansible playbook failed with exit code: $exit_code"
+        echo "Last 50 lines of ansible log:"
+        tail -n 50 /tmp/ansible-k3s-test.log
+        return $exit_code
+      }
   fi
-
-  # Cleanup mock service on exit
-  if [ "$CHECK_MODE" != "true" ]; then
-    sudo systemctl stop k3s.service || true
-  fi
-
-  # Clean up
-  rm -f /tmp/test-inventory.yml
-  cleanup_sudo
 }
 
-# Main execution
 echo "Starting K3s server test execution..."
 run_test
+exit_code=$?
 
-echo "Tests completed successfully!"
-exit 0
+echo "Tests completed with exit code: $exit_code"
+exit $exit_code

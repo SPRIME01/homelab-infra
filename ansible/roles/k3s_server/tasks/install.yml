@@ -3,6 +3,14 @@
   ansible.builtin.stat:
     path: "{{ k3s_server_install_dir }}/k3s"
   register: k3s_binary
+  when: not k3s_server_skip_download | default(false)
+
+- name: Mock K3s binary existence in check mode
+  ansible.builtin.set_fact:
+    k3s_binary:
+      stat:
+        exists: true
+  when: ansible_check_mode or k3s_server_skip_download | default(false)
 
 - name: Download K3s binary
   ansible.builtin.get_url:
@@ -11,7 +19,7 @@
     mode: '0755'
     owner: root
     group: root
-  when: not k3s_binary.stat.exists
+  when: not k3s_binary.stat.exists and not ansible_check_mode and not k3s_server_skip_download | default(false)
   become: true
 
 - name: Create K3s service file
@@ -21,10 +29,9 @@
     mode: '0644'
     owner: root
     group: root
-  vars:
-    k3s_exec_command: "server --config {{ k3s_server_config_file }}"
   notify:
     - Restart K3s
+  when: not ansible_check_mode and not k3s_server_skip_service | default(false)
   become: true
 
 - name: Create K3s systemd environment file
@@ -36,6 +43,7 @@
     group: root
   notify:
     - Restart K3s
+  when: not ansible_check_mode and not k3s_server_skip_service | default(false)
   become: true
 
 - name: Start and enable K3s service
@@ -44,4 +52,5 @@
     state: started
     enabled: true
     daemon_reload: true
+  when: not ansible_check_mode and not k3s_server_skip_service | default(false)
   become: true

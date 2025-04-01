@@ -16,5 +16,31 @@ provisioner:
   name: ansible
   env:
     ANSIBLE_FORCE_COLOR: "true"
+  inventory:
+    host_vars:
+      k3s-test:
+        k3s_server_testing: true
+        ansible_become_method: sudo
+  config_options:
+    defaults:
+      callbacks_enabled: "ansible.posix.profile_tasks,timer"
+      verbosity: 1
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+  lint:
+    name: ansible-lint
 verifier:
   name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - verify
+    - cleanup
+    - destroy
