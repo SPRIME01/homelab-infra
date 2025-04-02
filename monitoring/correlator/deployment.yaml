@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-metric-correlator
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-metric-correlator
+  template:
+    metadata:
+      labels:
+        app: log-metric-correlator
+    spec:
+      containers:
+      - name: correlator
+        image: python:3.10-slim
+        imagePullPolicy: IfNotPresent
+        command: 
+        - "/bin/bash"
+        - "-c"
+        args:
+        - |
+          pip install requests prometheus-client
+          cp /config/log_metric_correlator.py /app/
+          chmod +x /app/log_metric_correlator.py
+          cd /app
+          exec python log_metric_correlator.py
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: LOKI_URL
+          value: "http://loki.monitoring.svc.cluster.local:3100"
+        - name: PROMETHEUS_URL
+          value: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+        - name: CORRELATION_INTERVAL
+          value: "60"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: log-metric-correlator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-metric-correlator
+  namespace: monitoring
+data:
+  log_metric_correlator.py: |
+    # This will be populated with the script content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-metric-correlator
+  namespace: monitoring
+  labels:
+    app: log-metric-correlator
+spec:
+  selector:
+    app: log-metric-correlator
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: log-metric-correlator
+  namespace: monitoring
+  labels:
+    prometheus: homelab
+spec:
+  selector:
+    matchLabels:
+      app: log-metric-correlator
+  endpoints:
+  - port: metrics
+    interval: 30s

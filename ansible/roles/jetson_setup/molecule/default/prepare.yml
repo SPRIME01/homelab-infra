@@ -1,0 +1,29 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Install required packages for testing
+      ansible.builtin.apt:
+        name:
+          - locales
+          - locales-all
+          - python3-pip
+          - udev
+        state: present
+        update_cache: true
+
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "/proc"
+        - "/proc/device-tree"
+        - "/etc/tegra-power"
+        - "/usr/local/bin"
+
+    - name: Setup locale for testing
+      ansible.builtin.command: locale-gen en_US.UTF-8
+      changed_when: true

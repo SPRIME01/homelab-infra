@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  retention: 15d  # Keep metrics for 15 days
+  retentionSize: 10GB  # Limit storage to 10GB
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 12Gi  # Slightly larger than retention to avoid issues
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  serviceMonitorSelector:
+    matchLabels:
+      prometheus: homelab
+  ruleSelector:
+    matchLabels:
+      prometheus: homelab
+      role: alert-rules
+  alerting:
+    alertmanagers:
+    - namespace: monitoring
+      name: alertmanager-operated
+      port: web

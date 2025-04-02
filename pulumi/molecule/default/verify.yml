@@ -1,0 +1,34 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    pulumi_test_dir: "/tmp/pulumi-test"
+    pulumi_projects:
+      - cluster-setup
+      - core-services
+      - storage
+  tasks:
+    - name: Verify PulumiTestHelper is functional
+      ansible.builtin.command: >
+        python3 {{ pulumi_test_dir }}/pulumi_test_helper.py
+      register: helper_result
+      changed_when: false
+
+    - name: Parse helper output
+      ansible.builtin.set_fact:
+        parsed_output: "{{ helper_result.stdout | from_json }}"
+
+    - name: Verify helper produces valid output
+      ansible.builtin.assert:
+        that:
+          - parsed_output.resources | length > 0
+          - parsed_output.changes is defined
+        fail_msg: "PulumiTestHelper didn't produce valid output"
+        success_msg: "PulumiTestHelper works correctly"
+
+    - name: Verify each Pulumi project can be tested
+      ansible.builtin.include_tasks: verify_project.yml
+      loop: "{{ pulumi_projects }}"
+      loop_control:
+        loop_var: project

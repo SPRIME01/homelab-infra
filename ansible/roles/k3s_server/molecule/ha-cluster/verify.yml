@@ -1,0 +1,71 @@
+---
+- name: Verify
+  hosts: k3s_servers
+  become: true
+  vars:
+    test_base_dir: "/tmp/k3s-test"
+    k3s_server_config_dir: "{{ test_base_dir }}/etc/rancher/k3s"
+    k3s_server_data_dir: "{{ test_base_dir }}/var/lib/rancher/k3s"
+    k3s_server_binary: "{{ test_base_dir }}/usr/local/bin/k3s"
+    k3s_server_service_file: "{{ test_base_dir }}/etc/systemd/system/k3s.service"
+
+  tasks:
+    - name: Check if the test directory exists
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}"
+      register: test_dir_check
+
+    - name: Verify test directory exists
+      ansible.builtin.assert:
+        that:
+          - test_dir_check.stat.exists
+          - test_dir_check.stat.isdir
+        fail_msg: "Test directory not created properly"
+        success_msg: "Test directory exists and is a directory"
+
+    - name: Check if service file exists
+      ansible.builtin.stat:
+        path: "{{ k3s_server_service_file }}"
+      register: service_file_check
+
+    - name: Verify service file exists
+      ansible.builtin.assert:
+        that:
+          - service_file_check.stat.exists
+        fail_msg: "K3s service file not created properly"
+        success_msg: "K3s service file exists"
+
+    - name: Check service file content for cluster configuration
+      ansible.builtin.command: "cat {{ k3s_server_service_file }}"
+      register: service_content
+      changed_when: false
+
+    - name: Verify service configuration for first node
+      ansible.builtin.assert:
+        that:
+          - "'--cluster-init' in service_content.stdout"
+        fail_msg: "First server missing cluster-init flag"
+        success_msg: "First server has cluster-init flag"
+      when: inventory_hostname == groups['k3s_servers'][0]
+
+    - name: Verify service configuration for other nodes
+      ansible.builtin.assert:
+        that:
+          - "'--server' in service_content.stdout"
+          - "'https://' in service_content.stdout"
+        fail_msg: "Other servers missing server URL configuration"
+        success_msg: "Other servers have server URL configuration"
+      when: inventory_hostname != groups['k3s_servers'][0]
+
+    - name: Check for server token
+      ansible.builtin.stat:
+        path: "{{ k3s_server_data_dir }}/server/node-token"
+      register: token_file_check
+
+    - name: Verify token file for first node
+      ansible.builtin.assert:
+        that:
+          - token_file_check.stat.exists
+        fail_msg: "Node token file not created properly on first server"
+        success_msg: "Node token file exists on first server"
+      when: inventory_hostname == groups['k3s_servers'][0]

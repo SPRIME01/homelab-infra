@@ -1,12 +1,128 @@
 ---
-- hosts: localhost
-  gather_facts: true
+- name: Test home_assistant_integration role
+  hosts: localhost
+  connection: local
   become: false
+  gather_facts: false  # Disable automatic fact gathering
+
   vars:
-    home_assistant_integration_voice_assistant_addon: "a0d7b954_rhasspy"
-    home_assistant_integration_voice_assistant_language: "en"
-    home_assistant_integration_voice_assistant_accept_license: true
-    home_assistant_integration_voice_assistant_type: "local"
-    home_assistant_integration_voice_assistant_wake_word: "Hey Home"
-    home_assistant_integration_voice_assistant_model: "vosk"
-    is_testing: true
+    home_assistant_integration_testing: true
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    test_base_dir: "/tmp/home-assistant-test"
+    home_assistant_integration_ssh_accept_license: true
+    home_assistant_integration_voice_assistant_accept_license: true  # Added missing variable
+    home_assistant_integration_voice_assistant_addon: "a0d7b954_rhasspy"  # Added missing variable
+    home_assistant_integration_enable_mqtt: true  # Added missing variable
+    home_assistant_integration_mqtt_accept_license: true  # Added missing variable
+    home_assistant_integration_enable_influxdb: true  # Added missing variable
+    home_assistant_integration_influxdb_accept_license: true  # Added missing variable
+
+  pre_tasks:
+    - name: Gather minimal facts without root privileges
+      setup:
+        gather_subset: min
+      become: false
+
+    - name: Clean up test directory
+      ansible.builtin.file:
+        path: "{{ test_base_dir }}"
+        state: absent
+
+    - name: Create base test directories
+      ansible.builtin.file:
+        path: "{{ test_base_dir }}/{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+      loop:
+        - "usr/share/hassio/addons"
+        - "config"
+        - "config/integrations"
+        - "config/.ssh"
+
+    - name: Create addon directories
+      ansible.builtin.file:
+        path: "{{ test_base_dir }}/usr/share/hassio/addons/{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+      loop:
+        - "core_mosquitto"
+        - "5ba9ddb2_influxdb"
+        - "a0d7b954_ssh"
+        - "a0d7b954_rhasspy"
+
+    - name: Create mock configuration files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "{{ test_base_dir }}{{ item.dest }}"
+        mode: '0644'
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid }}"
+      loop:
+        - { content: '{"license": false}', dest: '/usr/share/hassio/addons/core_mosquitto/options.json' }
+        - { content: '{"license": false}', dest: '/usr/share/hassio/addons/5ba9ddb2_influxdb/options.json' }
+        - { content: '{"license": false}', dest: '/usr/share/hassio/addons/a0d7b954_ssh/options.json' }
+        - { content: '{"license": false}', dest: '/usr/share/hassio/addons/a0d7b954_rhasspy/options.json' }
+        - { content: '{"startup": false}', dest: '/usr/share/hassio/addons/core_mosquitto/config.json' }
+        - { content: '{"startup": false}', dest: '/usr/share/hassio/addons/5ba9ddb2_influxdb/config.json' }
+        - { content: '{"startup": false}', dest: '/usr/share/hassio/addons/a0d7b954_ssh/config.json' }
+        - { content: '{"startup": false}', dest: '/usr/share/hassio/addons/a0d7b954_rhasspy/config.json' }
+        - { content: '# Home Assistant configuration', dest: '/config/configuration.yaml' }
+
+    - name: Override paths for testing
+      ansible.builtin.set_fact:
+        config_dir: "{{ test_base_dir }}/config"
+        hassio_dir: "{{ test_base_dir }}/usr/share/hassio"
+
+  roles:
+    - role: ../..
+      vars:
+        hassio_base_dir: "{{ hassio_dir }}"
+        config_base_dir: "{{ config_dir }}"
+        home_assistant_integration_user: "{{ ansible_user_id }}"
+        file_owner: "{{ ansible_user_id }}"
+        file_group: "{{ ansible_user_gid }}"
+
+  post_tasks:
+    - name: Verify configuration files
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}{{ item.path }}"
+      register: stat_result
+      loop:
+        - { path: "/config/configuration.yaml" }
+        - { path: "/config/integrations/mqtt.yaml", enabled: "{{ home_assistant_integration_enable_mqtt }}" }
+        - { path: "/config/integrations/influxdb.yaml", enabled: "{{ home_assistant_integration_enable_influxdb }}" }
+        - { path: "/config/integrations/voice_assistant.yaml", enabled: "{{ home_assistant_integration_enable_voice_assistant }}" }
+        - { path: "/config/integrations/ssh.yaml", enabled: "{{ home_assistant_integration_enable_ssh }}" }
+        - { path: "/config/.ssh/authorized_keys", enabled: "{{ home_assistant_integration_enable_ssh }}" }
+
+    - name: Assert configuration files exist
+      ansible.builtin.assert:
+        that:
+          - stat_result.results | selectattr("item.enabled", "defined") | selectattr("item.enabled") | map(attribute="stat.exists") | all
+        fail_msg: "One or more required configuration files are missing"
+        success_msg: "All required configuration files exist"
+
+    - name: Verify file permissions
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}{{ item.path }}"
+      register: perm_result
+      loop:
+        - { path: "/config/.ssh", mode: '0700' }
+        - { path: "/config/.ssh/authorized_keys", mode: '0600', enabled: "{{ home_assistant_integration_enable_ssh }}" }
+
+    - name: Assert file permissions
+      ansible.builtin.assert:
+        that:
+          - perm_result.results | selectattr("item.enabled", "undefined") | map(attribute="stat.mode") | map("string") | map("regex_replace", "^0o", "") | map("equalto", item.mode) | all
+          - perm_result.results | selectattr("item.enabled", "defined") | selectattr("item.enabled") | map(attribute="stat.mode") | map("string") | map("regex_replace", "^0o", "") | map("equalto", item.mode) | all
+        fail_msg: "One or more files have incorrect permissions"
+        success_msg: "All file permissions are correct"
+
+    - name: Clean up test directory
+      ansible.builtin.file:
+        path: "{{ test_base_dir }}"
+        state: absent

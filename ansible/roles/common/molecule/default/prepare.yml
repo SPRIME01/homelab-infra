@@ -1,0 +1,37 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - sudo
+          - openssh-server
+        state: present
+        update_cache: true
+
+    - name: Create mock groups for testing
+      ansible.builtin.group:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - sudo
+        - docker
+
+    - name: Make sure sudoers.d directory exists
+      ansible.builtin.file:
+        path: /etc/sudoers.d
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Make sure ssh configuration directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /etc/ssh
+        - /etc/ssh/sshd_config.d

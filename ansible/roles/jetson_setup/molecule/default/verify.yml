@@ -1,0 +1,47 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    test_base_dir: "/tmp/jetson-test"
+
+  tasks:
+    - name: Check if test directory exists
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}"
+      register: test_dir
+
+    - name: Verify test directory
+      ansible.builtin.assert:
+        that:
+          - test_dir.stat.exists
+          - test_dir.stat.isdir
+        fail_msg: "Test directory not created properly"
+        success_msg: "Test directory exists and is a directory"
+
+    - name: Check if power management service exists
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}/etc/systemd/system/jetson-power.service"
+      register: power_service
+
+    - name: Verify power management service
+      ansible.builtin.assert:
+        that:
+          - power_service.stat.exists
+          - power_service.stat.isfile
+        fail_msg: "Power management service not created properly"
+        success_msg: "Power management service exists and is a file"
+
+    - name: Check if power management script exists
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}/usr/local/bin/jetson-power-setup.sh"
+      register: power_script
+
+    - name: Verify power management script
+      ansible.builtin.assert:
+        that:
+          - power_script.stat.exists
+          - power_script.stat.isfile
+          - power_script.stat.executable
+        fail_msg: "Power management script not created properly"
+        success_msg: "Power management script exists and is executable"

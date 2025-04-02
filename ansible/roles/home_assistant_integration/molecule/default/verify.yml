@@ -1,0 +1,57 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    test_base_dir: "/tmp/home-assistant-test"
+    home_assistant_integration_user: "homeassistant"
+
+  tasks:
+    - name: Check if integration configuration directories exist
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}/config/integrations/{{ item }}.yaml"
+      register: integration_files
+      loop:
+        - mqtt
+        - influxdb
+        - voice_assistant
+        - ssh
+
+    - name: Verify integration files exist
+      ansible.builtin.assert:
+        that:
+          - integration_files.results[0].stat.exists  # MQTT
+          - integration_files.results[1].stat.exists  # InfluxDB
+          - integration_files.results[2].stat.exists  # Voice assistant
+          - integration_files.results[3].stat.exists  # SSH
+        fail_msg: "Not all integration files were created"
+        success_msg: "All integration files exist"
+
+    - name: Check if SSH key setup is correct
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}/config/.ssh/authorized_keys"
+      register: ssh_key_file
+
+    - name: Verify SSH key file permissions
+      ansible.builtin.assert:
+        that:
+          - ssh_key_file.stat.exists
+          - ssh_key_file.stat.mode == "0600"
+          - ssh_key_file.stat.pw_name == "{{ home_assistant_integration_user }}"
+        fail_msg: "SSH key file setup is incorrect"
+        success_msg: "SSH key file setup is correct"
+
+    - name: Check main configuration file
+      ansible.builtin.command: "cat {{ test_base_dir }}/config/configuration.yaml"
+      register: config_content
+      changed_when: false
+
+    - name: Verify configuration includes integrations
+      ansible.builtin.assert:
+        that:
+          - "'!include integrations/mqtt.yaml' in config_content.stdout"
+          - "'!include integrations/influxdb.yaml' in config_content.stdout"
+          - "'!include integrations/voice_assistant.yaml' in config_content.stdout"
+          - "'!include integrations/ssh.yaml' in config_content.stdout"
+        fail_msg: "Configuration does not include all integration files"
+        success_msg: "Configuration includes all integration files"

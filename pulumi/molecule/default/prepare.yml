@@ -1,0 +1,90 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  vars:
+    pulumi_projects:
+      - cluster-setup
+      - core-services
+      - storage
+    pulumi_test_dir: "/tmp/pulumi-test"
+    pulumi_backend_dir: "/tmp/pulumi-test-state"
+  tasks:
+    - name: Create test directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ pulumi_test_dir }}"
+        - "{{ pulumi_backend_dir }}"
+        - "{{ pulumi_test_dir }}/cluster-setup"
+        - "{{ pulumi_test_dir }}/core-services"
+        - "{{ pulumi_test_dir }}/storage"
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - nodejs
+          - npm
+        state: present
+        update_cache: true
+
+    - name: Install Pulumi CLI (mocked)
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Mock Pulumi CLI for testing"
+          echo "Called with: $@"
+          if [[ "$1" == "preview" ]]; then
+            echo "Resources:"
+            echo "    + kubernetes:core/v1:Namespace      openebs     created"
+            echo "    + kubernetes:core/v1:StorageClass   local-path  created"
+            exit 0
+          elif [[ "$1" == "stack" && "$2" == "output" ]]; then
+            echo '{"kubeconfig": "test-kubeconfig", "endpoint": "https://192.168.1.100:6443"}'
+            exit 0
+          fi
+          exit 0
+        dest: "/usr/local/bin/pulumi"
+        mode: '0755'
+
+    - name: Setup mock Kubernetes environment
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ pulumi_test_dir }}/kube"
+        - "{{ pulumi_test_dir }}/kube/resources"
+
+    - name: Create mock kubeconfig
+      ansible.builtin.copy:
+        content: |
+          apiVersion: v1
+          clusters:
+          - cluster:
+              server: https://127.0.0.1:6443
+            name: test-cluster
+          contexts:
+          - context:
+              cluster: test-cluster
+              user: test-admin
+            name: test-context
+          current-context: test-context
+          kind: Config
+          users:
+          - name: test-admin
+            user:
+              token: test-token
+        dest: "{{ pulumi_test_dir }}/kube/config"
+        mode: '0600'
+
+    - name: Copy existing Pulumi test files
+      ansible.builtin.copy:
+        src: "/home/sprime01/homelab/homelab-infra/pulumi/{{ item }}/src/__tests__/"
+        dest: "{{ pulumi_test_dir }}/{{ item }}/__tests__/"
+        mode: preserve
+        remote_src: true
+      loop: "{{ pulumi_projects }}"
+      ignore_errors: true

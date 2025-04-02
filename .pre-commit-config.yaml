@@ -32,10 +32,48 @@ repos:
     hooks:
       - id: ansible-lint
         files: \.(yaml|yml)$
-
+        
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v2.3.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: []
+
+  # Python formatting
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        language_version: python3
+        
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # Molecule quick tests
+  - repo: local
+    hooks:
+      - id: molecule-lint
+        name: Molecule Lint
+        entry: bash -c 'cd ${MOLECULE_DIR:-.} && python -m molecule lint'
+        language: system
+        pass_filenames: false
+        files: ansible/roles/
+        types: [directory]
+        
+      - id: pulumi-validate
+        name: Pulumi TypeScript Validation
+        entry: bash -c './scripts/test-pulumi.sh --validate-only'
+        language: system
+        pass_filenames: false
+        files: pulumi/
+        
+      - id: pyproject-check
+        name: Pyproject Dependencies Check
+        entry: python -c "import toml; toml.load('pyproject.toml')"
+        language: system
+        pass_filenames: false
+        files: pyproject.toml

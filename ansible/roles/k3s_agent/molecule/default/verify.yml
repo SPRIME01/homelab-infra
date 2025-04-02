@@ -1,0 +1,74 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    test_base_dir: "/tmp/k3s-agent-test"
+    k3s_agent_config_dir: "{{ test_base_dir }}/etc/rancher/k3s"
+    k3s_agent_data_dir: "{{ test_base_dir }}/var/lib/rancher/k3s"
+    k3s_agent_service_file: "{{ test_base_dir }}/etc/systemd/system/k3s-agent.service"
+    k3s_agent_binary: "{{ test_base_dir }}/usr/local/bin/k3s"
+
+  tasks:
+    - name: Check if the test directory exists
+      ansible.builtin.stat:
+        path: "{{ test_base_dir }}"
+      register: test_dir_check
+
+    - name: Verify test directory exists
+      ansible.builtin.assert:
+        that:
+          - test_dir_check.stat.exists
+          - test_dir_check.stat.isdir
+        fail_msg: "Test directory not created properly"
+        success_msg: "Test directory exists and is a directory"
+
+    - name: Check if the mock k3s binary exists and is executable
+      ansible.builtin.stat:
+        path: "{{ k3s_agent_binary }}"
+      register: binary_check
+
+    - name: Verify k3s binary
+      ansible.builtin.assert:
+        that:
+          - binary_check.stat.exists
+          - binary_check.stat.executable
+        fail_msg: "K3s binary wasn't properly created or is not executable"
+        success_msg: "K3s binary exists and is executable"
+
+    - name: Check if the k3s config directory exists
+      ansible.builtin.stat:
+        path: "{{ k3s_agent_config_dir }}"
+      register: config_dir_check
+
+    - name: Verify config directory
+      ansible.builtin.assert:
+        that:
+          - config_dir_check.stat.exists
+          - config_dir_check.stat.isdir
+        fail_msg: "K3s config directory not created properly"
+        success_msg: "K3s config directory exists"
+
+    - name: Check if the service file exists
+      ansible.builtin.stat:
+        path: "{{ k3s_agent_service_file }}"
+      register: service_file_check
+
+    - name: Verify service file exists
+      ansible.builtin.assert:
+        that:
+          - service_file_check.stat.exists
+        fail_msg: "K3s agent service file not created properly"
+        success_msg: "K3s agent service file exists"
+
+    - name: Check service file content
+      ansible.builtin.command: "cat {{ k3s_agent_service_file }}"
+      register: service_content
+      changed_when: false
+
+    - name: Verify service configuration
+      ansible.builtin.assert:
+        that:
+          - "'K3s Agent' in service_content.stdout"
+        fail_msg: "Service file content incorrect"
+        success_msg: "Service file content looks correct"

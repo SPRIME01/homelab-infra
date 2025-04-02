@@ -1,0 +1,37 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Install required packages for testing
+      ansible.builtin.apt:
+        name:
+          - curl
+          - python3-pip
+          - iptables
+          - apparmor-utils
+        state: present
+        update_cache: true
+
+    - name: Create mock systemd
+      ansible.builtin.copy:
+        dest: /usr/bin/systemctl
+        content: |
+          #!/bin/bash
+          echo "Mock systemctl command for testing"
+          echo "Called with: $@"
+          if [[ "$1" == "enable" ]]; then
+              echo "Service enabled"
+          elif [[ "$1" == "start" ]]; then
+              echo "Service started"
+          elif [[ "$1" == "status" ]]; then
+              echo "● k3s.service - Lightweight Kubernetes"
+              echo "   Loaded: loaded (/etc/systemd/system/k3s.service; enabled; vendor preset: enabled)"
+              echo "   Active: active (running) since Mon 2023-06-05 12:00:00 UTC; 1min ago"
+          fi
+          exit 0
+        mode: '0755'
+
+    - name: Set hostname
+      ansible.builtin.command: "hostname {{ inventory_hostname }}"
+      changed_when: true

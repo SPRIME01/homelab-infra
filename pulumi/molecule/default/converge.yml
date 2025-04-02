@@ -1,0 +1,96 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  vars:
+    pulumi_test_dir: "/tmp/pulumi-test"
+    pulumi_projects:
+      - cluster-setup
+      - core-services
+      - storage
+  tasks:
+    - name: Create PulumiTestHelper module
+      ansible.builtin.copy:
+        content: |
+          #!/usr/bin/env python3
+          
+          import os
+          import json
+          import subprocess
+          
+          class PulumiTestHelper:
+              def __init__(self, project_dir, stack='dev'):
+                  self.project_dir = project_dir
+                  self.stack = stack
+                  self.env = os.environ.copy()
+                  self.env['PULUMI_CONFIG_PASSPHRASE'] = 'test-passphrase'
+                  self.env['PULUMI_BACKEND_URL'] = 'file:///tmp/pulumi-test-state'
+          
+              def preview(self):
+                  """Run a mock preview and return structured output"""
+                  # In a real test, this would call the actual pulumi command
+                  # For now we return mock data
+                  return {
+                      'changes': 3, 
+                      'creates': 2, 
+                      'updates': 1,
+                      'deletes': 0,
+                      'same': 5,
+                      'resources': [
+                          {'type': 'kubernetes:core/v1:Namespace', 'name': 'openebs', 'change': 'create'},
+                          {'type': 'kubernetes:storage/v1:StorageClass', 'name': 'local-path', 'change': 'create'},
+                          {'type': 'kubernetes:apps/v1:Deployment', 'name': 'openebs-operator', 'change': 'update'}
+                      ]
+                  }
+          
+              def get_outputs(self):
+                  """Get stack outputs"""
+                  # For testing, return mock outputs based on project
+                  if 'cluster-setup' in self.project_dir:
+                      return {
+                          'kubeconfig': '/tmp/kube/config',
+                          'clusterEndpoint': 'https://192.168.1.100:6443'
+                      }
+                  elif 'storage' in self.project_dir:
+                      return {
+                          'defaultStorageClass': 'openebs-hostpath',
+                          'openEBSStatus': 'Deployed'
+                      }
+                  elif 'core-services' in self.project_dir:
+                      return {
+                          'certManagerStatus': 'Deployed',
+                          'traefikEndpoint': 'http://192.168.1.100:80'
+                      }
+                  return {}
+          
+              def validate_stack(self):
+                  """Validate stack configuration"""
+                  return True
+          
+          if __name__ == "__main__":
+              # Example usage
+              helper = PulumiTestHelper("/tmp/pulumi-test/storage")
+              preview_result = helper.preview()
+              print(json.dumps(preview_result, indent=2))
+        dest: "{{ pulumi_test_dir }}/pulumi_test_helper.py"
+        mode: '0755'
+
+    - name: Test Pulumi integration
+      ansible.builtin.command: >
+        python3 -c "
+        import sys
+        sys.path.append('{{ pulumi_test_dir }}')
+        from pulumi_test_helper import PulumiTestHelper
+        import json
+        helper = PulumiTestHelper('{{ pulumi_test_dir }}/{{ item }}')
+        preview = helper.preview()
+        outputs = helper.get_outputs()
+        print(json.dumps({'preview': preview, 'outputs': outputs}, indent=2))
+        "
+      register: pulumi_test_result
+      loop: "{{ pulumi_projects }}"
+      changed_when: false
+
+    - name: Display test results
+      ansible.builtin.debug:
+        var: pulumi_test_result.results

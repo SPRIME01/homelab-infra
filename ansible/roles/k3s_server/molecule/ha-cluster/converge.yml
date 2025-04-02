@@ -1,0 +1,56 @@
+---
+- name: Converge
+  hosts: k3s_servers
+  become: true
+  vars:
+    test_base_dir: "/tmp/k3s-test"
+    k3s_server_config_dir: "{{ test_base_dir }}/etc/rancher/k3s"
+    k3s_server_data_dir: "{{ test_base_dir }}/var/lib/rancher/k3s"
+    k3s_server_binary: "{{ test_base_dir }}/usr/local/bin/k3s"
+    k3s_server_service_file: "{{ test_base_dir }}/etc/systemd/system/k3s.service"
+    k3s_server_first_server_address: "{{ hostvars[groups['k3s_servers'][0]]['ansible_facts']['eth0']['ipv4']['address'] }}"
+    k3s_server_skip_download: true
+    k3s_server_skip_start: true
+
+  pre_tasks:
+    - name: Create test directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ test_base_dir }}"
+        - "{{ k3s_server_config_dir }}"
+        - "{{ k3s_server_config_dir }}/server"
+        - "{{ k3s_server_data_dir }}/server"
+        - "{{ test_base_dir }}/usr/local/bin"
+        - "{{ test_base_dir }}/etc/systemd/system"
+
+    - name: Create mock k3s binary
+      ansible.builtin.copy:
+        dest: "{{ k3s_server_binary }}"
+        content: |
+          #!/bin/bash
+          echo "Mock K3s binary for testing"
+          exit 0
+        mode: '0755'
+
+    - name: Set server URL for non-first nodes
+      ansible.builtin.set_fact:
+        k3s_server_url: "https://{{ k3s_server_first_server_address }}:6443"
+      when: inventory_hostname != groups['k3s_servers'][0]
+
+    - name: Create mock node token file for first server
+      ansible.builtin.copy:
+        dest: "{{ k3s_server_data_dir }}/server/node-token"
+        content: "{{ k3s_server_token }}"
+        mode: '0600'
+      when: inventory_hostname == groups['k3s_servers'][0]
+
+  roles:
+    - role: k3s_server
+
+  post_tasks:
+    - name: Show test results
+      ansible.builtin.debug:
+        msg: "K3s server HA cluster test converge completed successfully"

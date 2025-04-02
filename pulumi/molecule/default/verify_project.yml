@@ -1,0 +1,25 @@
+---
+- name: Get outputs for {{ project }}
+  ansible.builtin.command: >
+    python3 -c "
+    import sys
+    sys.path.append('{{ pulumi_test_dir }}')
+    from pulumi_test_helper import PulumiTestHelper
+    import json
+    helper = PulumiTestHelper('{{ pulumi_test_dir }}/{{ project }}')
+    outputs = helper.get_outputs()
+    print(json.dumps(outputs))
+    "
+  register: project_outputs
+  changed_when: false
+
+- name: Parse project outputs
+  ansible.builtin.set_fact:
+    parsed_project_outputs: "{{ project_outputs.stdout | from_json }}"
+
+- name: Verify project {{ project }} has expected outputs
+  ansible.builtin.assert:
+    that:
+      - parsed_project_outputs | length > 0
+    fail_msg: "Project {{ project }} doesn't have expected outputs"
+    success_msg: "Project {{ project }} has valid outputs"

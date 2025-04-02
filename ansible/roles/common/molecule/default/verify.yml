@@ -1,0 +1,48 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Check if user exists
+      ansible.builtin.command: id testuser
+      register: id_result
+      changed_when: false
+      ignore_errors: true
+
+    - name: Verify user exists
+      ansible.builtin.assert:
+        that:
+          - id_result is success
+        fail_msg: "User testuser does not exist"
+        success_msg: "User testuser exists"
+
+    - name: Check if required packages are installed
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      register: package_check
+      loop:
+        - curl
+        - vim
+        - htop
+      check_mode: true
+      changed_when: false
+
+    - name: Verify packages are installed
+      ansible.builtin.assert:
+        that:
+          - not package_check.results | selectattr('changed', 'equalto', true) | list
+        fail_msg: "Not all required packages are installed"
+        success_msg: "All required packages are installed"
+
+    - name: Check SSH hardening configuration
+      ansible.builtin.stat:
+        path: /etc/ssh/sshd_config.d/hardening.conf
+      register: ssh_config
+
+    - name: Verify SSH configuration
+      ansible.builtin.assert:
+        that:
+          - ssh_config.stat.exists
+        fail_msg: "SSH hardening configuration not found"
+        success_msg: "SSH hardening configuration found"

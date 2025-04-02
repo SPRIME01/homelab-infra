@@ -1,0 +1,34 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    common_test_mode: true
+    # Add any role-specific test variables here
+    common_packages:
+      - curl
+      - vim
+      - htop
+    common_create_user: true
+    common_user_name: "testuser"
+    common_user_groups: ["sudo", "docker"]
+
+  pre_tasks:
+    - name: Create test directories and mock files
+      ansible.builtin.file:
+        path: "/tmp/common-test/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "etc/sudoers.d"
+        - "etc/ssh/sshd_config.d"
+        - "etc/systemd/system"
+        - "home/{{ common_user_name }}/.ssh"
+
+  roles:
+    - role: common
+
+  post_tasks:
+    - name: Show test results
+      ansible.builtin.debug:
+        msg: "Common role converge completed successfully"

@@ -1,0 +1,51 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    k3s_agent_test_mode: true
+    test_base_dir: "/tmp/k3s-agent-test"
+    k3s_agent_config_dir: "{{ test_base_dir }}/etc/rancher/k3s"
+    k3s_agent_data_dir: "{{ test_base_dir }}/var/lib/rancher/k3s"
+    k3s_agent_service_file: "{{ test_base_dir }}/etc/systemd/system/k3s-agent.service"
+    k3s_agent_binary: "{{ test_base_dir }}/usr/local/bin/k3s"
+    k3s_agent_token: "test-token-value"
+    k3s_agent_server_url: "https://127.0.0.1:6443"
+    k3s_agent_version: "v1.28.4+k3s1"
+    k3s_agent_flags:
+      - "--node-label=test=molecule"
+    k3s_agent_skip_download: true
+    k3s_agent_skip_start: true
+
+  pre_tasks:
+    - name: Create test directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ test_base_dir }}"
+        - "{{ k3s_agent_config_dir }}"
+        - "{{ k3s_agent_data_dir }}/agent"
+        - "{{ test_base_dir }}/usr/local/bin"
+        - "{{ test_base_dir }}/etc/systemd/system"
+        - "{{ test_base_dir }}/etc/apt/sources.list.d"
+        - "{{ test_base_dir }}/etc/apt/keyrings"
+        - "{{ test_base_dir }}/etc/containerd"
+
+    - name: Create mock k3s binary
+      ansible.builtin.copy:
+        dest: "{{ k3s_agent_binary }}"
+        content: |
+          #!/bin/bash
+          echo "Mock K3s binary for testing"
+          exit 0
+        mode: '0755'
+
+  roles:
+    - role: k3s_agent
+
+  post_tasks:
+    - name: Show test results
+      ansible.builtin.debug:
+        msg: "Role converge completed successfully"
