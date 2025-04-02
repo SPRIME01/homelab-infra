@@ -14,9 +14,9 @@ Managing infrastructure for:
 - WSL2 on Windows 10/11
 - Docker Desktop
 - Kubernetes CLI (kubectl)
-- Ansible 2.9+
+- Ansible 9+
 - Pulumi CLI
-- Python 3.8+
+- Python 3.10+
 - Git
 
 ## 🚀 Getting Started
@@ -42,18 +42,45 @@ cp .env.example .env
 
 ```
 homelab-infra/
-├── ansible/          # 🔧 Ansible playbooks and roles
-├── kubernetes/       # ⚙️ K3s manifests and configurations
-├── pulumi/          # 🌐 Pulumi IaC code
-├── scripts/         # 📜 Utility scripts
+├── ansible/         # 🔧 Ansible playbooks and roles for node configuration
+├── kubernetes/      # ⚙️ K3s manifests and configurations
+├── pulumi/          # 🌐 Pulumi IaC code for infrastructure provisioning
+├── scripts/         # 📜 Utility scripts for testing, deployment, etc.
+├── monitoring/      # 📊 Prometheus, Grafana, and Loki configurations
+├── tests/           # ✅ Test suites (Molecule, Testinfra, Pytest)
 └── docs/            # 📚 Documentation
 ```
 
 ## 🔄 Workflow
 
-1. Infrastructure provisioning with Pulumi
-2. Node configuration with Ansible
-3. Application deployment with K3s
+1. **Infrastructure Provisioning**: Use Pulumi to provision base infrastructure (K3s cluster, storage, core services).
+2. **Node Configuration**: Configure nodes using Ansible playbooks for system-level settings and application deployment.
+3. **Application Deployment**: Deploy applications and services using K3s manifests.
+4. **Automated Testing**: Run Molecule, Testinfra, and Pytest suites to validate infrastructure and application state.
+5. **Continuous Monitoring**: Monitor system performance, application health, and test results using Prometheus, Grafana, and Loki.
+
+---
+
+## 🧪 Testing Strategy
+
+The project employs a comprehensive testing strategy using Molecule, Testinfra, and Pytest. Key aspects include:
+
+* **Molecule**: Role-based testing with Docker driver, ensuring idempotency and proper configuration.
+* **Testinfra**: Verification of infrastructure state, Kubernetes resources, and service configurations.
+* **Pytest**: Unit and integration tests for Pulumi deployments, logging, and metrics.
+* **Pre-commit Hooks**: Automated code quality checks and quick validation tests.
+* **CI/CD Pipeline**: GitHub Actions workflow for continuous integration and automated testing.
+* **Logging & Monitoring**: Loki for log aggregation, Prometheus for metrics, and Grafana for visualization.
+
+---
+## ⚙️ Key Scripts
+
+* `deploy-ansible.sh`: Deploys Ansible playbook configurations.
+* `test-ansible.sh`: Tests Ansible playbooks and roles (linting, syntax, dry-run).
+* `deploy-pulumi.sh`: Deploys infrastructure using Pulumi stacks.
+* `test-pulumi.sh`: Tests Pulumi configurations.
+* `deploy-dashboards.sh`: Deploys Grafana dashboards to Kubernetes.
+* `deploy-correlator.sh`: Deploys the log-metric correlator service.
 
 ## 🤝 Contributing
 
