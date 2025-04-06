@@ -4,6 +4,25 @@
     msg: "Would configure power settings in real mode"
   when: ansible_check_mode or is_test_mode
 
+# Create power management service and script in test mode
+- name: Create power management service file
+  ansible.builtin.template:
+    src: jetson-power.service.j2
+    dest: "{{ test_base_dir if is_test_mode else '' }}/etc/systemd/system/jetson-power.service"
+    mode: "0644"
+    owner: root
+    group: root
+  when: is_test_mode or not ansible_check_mode
+
+- name: Create power management script
+  ansible.builtin.template:
+    src: jetson-power-setup.sh.j2
+    dest: "{{ test_base_dir if is_test_mode else '' }}/usr/local/bin/jetson-power-setup.sh"
+    mode: "0755"
+    owner: root
+    group: root
+  when: is_test_mode or not ansible_check_mode
+
 - name: Configure power mode
   ansible.builtin.command: nvpmodel -m "{{ jetson_setup_power_mode }}"
   changed_when: true
@@ -12,6 +31,13 @@
 - name: Enable fan control
   ansible.builtin.service:
     name: nvfancontrol
+    state: started
+    enabled: true
+  when: not ansible_check_mode and not is_test_mode
+
+- name: Enable power management service
+  ansible.builtin.service:
+    name: jetson-power
     state: started
     enabled: true
   when: not ansible_check_mode and not is_test_mode

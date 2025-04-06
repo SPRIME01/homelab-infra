@@ -1,0 +1,13 @@
+[Unit]
+Description=Jetson Power Management
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/jetson-power-setup.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

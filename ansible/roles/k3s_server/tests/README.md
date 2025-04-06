@@ -78,10 +78,16 @@ k3s_server_binary: "{{ test_root }}/usr/local/bin/k3s"
 # Run full test sequence
 ./scripts/run-molecule-tests.sh k3s_server
 
-# Run specific steps
+# Run specific commands
 ./scripts/run-molecule-tests.sh -c lint k3s_server     # Run only linting
 ./scripts/run-molecule-tests.sh -c converge k3s_server # Run only converge
 ./scripts/run-molecule-tests.sh -c verify k3s_server   # Run only verification
+
+# Run with a specific scenario
+./scripts/run-molecule-tests.sh -s ha-cluster k3s_server
+
+# Enable verbose output
+./scripts/run-molecule-tests.sh -v k3s_server
 ```
 
 ## Test Coverage

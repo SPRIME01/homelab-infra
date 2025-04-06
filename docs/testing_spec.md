@@ -1,9 +1,9 @@
 "Refactor my existing Ansible project to use Molecule for testing, following best practices. Here's the context:
 
 * **Existing Setup:**
-    * This Ansible project (homelab-infra) provisions Kubernetes containers(kubernetes operators) using Pulumi.
-    * It uses Docker, uv, Python, Kubernetes, and pyproject.toml.
-    * Most of the necessary tools are already installed locally or in my virtual environment though your should audit my set up to make sure. check my pyproject file to see what i have installed in the virtual environment and make use of them. let me know when something else shld be installed or edit the pyroject file to add them.
+    * I have a working Ansible project that provisions Kubernetes containers using Pulumi.
+    * I use Docker, uv, Python, Kubernetes, and pyproject.toml.
+    * All necessary tools are already installed locally.
     * I have existing bash tests that verify the current state.
     * I already have a pyproject.toml and requirements.txt. Please refactor them to work with the new testing setup, without creating new ones, but instead modifying the existing ones.
 * **Desired Testing Framework:**
@@ -19,7 +19,6 @@
     * Focus on local testing (no cloud providers involved).
     * Adhere to Ansible and Molecule best practices.
     * Include relevant mocking for external dependencies to ensure tests are isolated and reliable.
-    * Integrate with ci/cd, gtaction, pre-commit hooks
 * **Refactoring Goals:**
     * Replace existing bash tests with robust Molecule scenarios.
     * Structure the Molecule tests for maintainability and clarity.
@@ -36,10 +35,8 @@
     * Use kubectl inside of testinfra for tests.
     * Mock external dependencies as needed.
 
-Use the following checklist to track your progress and keep me updated.
+Please implement these changes directly into my codebase using your agent mode. Use the following checklist to track your progress and keep me updated.
 
-Please update this checklist as you progress through each step. I expect you to work directly on my code base.
 
-before you begin audit my #codebase to see what needs to be changed the update the checklist accordingly
 
-note my tests are in the following folder: /home/sprime01/homelab/homelab-infra/scripts
+Please update this checklist as you progress through each step. I expect you to work directly on my code base."

@@ -98,15 +98,21 @@ Example testing the storage stack with increased verbosity:
 Execute Molecule tests for Ansible roles:
 ```bash
 # Run all Molecule stages for a role
-molecule test -c molecule/default/molecule.yml -s default
+./scripts/run-molecule-tests.sh <role_name>
 
-# Run only specific stages
-molecule lint -c molecule/default/molecule.yml -s default
-molecule converge -c molecule/default/molecule.yml -s default
-molecule verify -c molecule/default/molecule.yml -s default
+# Run specific commands
+./scripts/run-molecule-tests.sh -c lint <role_name>
+./scripts/run-molecule-tests.sh -c converge <role_name>
+./scripts/run-molecule-tests.sh -c verify <role_name>
+
+# Run with a specific scenario
+./scripts/run-molecule-tests.sh -s ha-cluster <role_name>
+
+# Enable verbose output
+./scripts/run-molecule-tests.sh -v <role_name>
 ```
 
-Using our helper script:
+Example:
 ```bash
 ./scripts/run-molecule-tests.sh k3s_server
 ./scripts/run-molecule-tests.sh -c converge k3s_server

@@ -116,14 +116,16 @@ This runs:
 ### Individual Steps
 
 ```bash
-# Run only linting
-./scripts/run-molecule-tests.sh -c lint k3s_server
+# Run specific commands
+./scripts/run-molecule-tests.sh -c lint k3s_server     # Run only linting
+./scripts/run-molecule-tests.sh -c converge k3s_server # Run only converge
+./scripts/run-molecule-tests.sh -c verify k3s_server   # Run only verification
 
-# Run only convergence
-./scripts/run-molecule-tests.sh -c converge k3s_server
+# Run with a specific scenario
+./scripts/run-molecule-tests.sh -s ha-cluster k3s_server
 
-# Run only verification
-./scripts/run-molecule-tests.sh -c verify k3s_server
+# Enable verbose output
+./scripts.run-molecule-tests.sh -v k3s_server
 ```
 
 ## Debugging Tests
@@ -140,7 +142,7 @@ Add the `-v` flag for detailed output:
 1. Create and prepare the container:
 ```bash
 ./scripts/run-molecule-tests.sh -c create k3s_server
-./scripts/run-molecule-tests.sh -c prepare k3s_server
+./scripts.run-molecule-tests.sh -c prepare k3s_server
 ```
 
 2. Connect to the container:

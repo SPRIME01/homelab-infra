@@ -2,6 +2,8 @@
 - name: Prepare
   hosts: all
   become: true
+  vars:
+    test_root: "/tmp/jetson-test"
   tasks:
     - name: Install required packages for testing
       ansible.builtin.apt:
@@ -13,17 +15,47 @@
         state: present
         update_cache: true
 
-    - name: Create required directories
+    - name: Create test directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         mode: '0755'
       loop:
-        - "/proc"
-        - "/proc/device-tree"
+        - "{{ test_root }}"
+        - "{{ test_root }}/proc/device-tree"
         - "/etc/tegra-power"
         - "/usr/local/bin"
+
+    - name: Create mock device-tree model file
+      ansible.builtin.copy:
+        content: "NVIDIA Jetson AGX Orin"
+        dest: "{{ test_root }}/proc/device-tree/model"
+        mode: '0444'
+
+    - name: Create mock nvpmodel tool for testing
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Mock nvpmodel for testing"
+          exit 0
+        dest: "/usr/local/bin/nvpmodel"
+        mode: '0755'
+
+    - name: Create mock jetson_clocks tool for testing
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Mock jetson_clocks for testing"
+          exit 0
+        dest: "/usr/local/bin/jetson_clocks"
+        mode: '0755'
 
     - name: Setup locale for testing
       ansible.builtin.command: locale-gen en_US.UTF-8
       changed_when: true
+
+    - name: Export device tree path for testing
+      ansible.builtin.lineinfile:
+        path: /etc/environment
+        line: "DEVICE_TREE_PATH={{ test_root }}/proc/device-tree"
+        create: true
