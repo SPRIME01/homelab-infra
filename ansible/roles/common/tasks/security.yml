@@ -10,6 +10,17 @@
   notify: restart ssh
   when: ansible_os_family == "Debian" and harden_ssh | bool
 
+- name: Configure SSH hardening in sshd_config.d
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config.d/hardening.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: restart ssh
+  when: ansible_os_family == "Debian" and harden_ssh | bool
+
 - name: Set password policies
   template:
     src: pwquality.conf.j2
@@ -26,11 +37,32 @@
     owner: root
     group: root
     mode: '0644'
+    force: false
+  check_mode: true
+  register: limits_check
   when: ansible_os_family == "Debian"
+
+- name: Apply system limits if needed
+  template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_os_family == "Debian" and limits_check.changed
 
 - name: Disable core dumps
   lineinfile:
     path: /etc/security/limits.conf
+    regexp: '^[*]\s+hard\s+core'
     line: "* hard core 0"
     state: present
   when: ansible_os_family == "Debian" and disable_core_dumps | bool
+
+- name: Create testuser
+  user:
+    name: testuser
+    groups: sudo,docker
+    append: true
+    state: present
+  when: ansible_os_family == "Debian"

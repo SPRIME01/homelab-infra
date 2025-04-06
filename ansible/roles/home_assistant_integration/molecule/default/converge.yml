@@ -6,11 +6,32 @@
     home_assistant_integration_testing: true
     test_base_dir: "/tmp/home-assistant-test"
     home_assistant_integration_user: "homeassistant"
+    
+    # MQTT Integration
     home_assistant_integration_enable_mqtt: true
+    home_assistant_integration_mqtt_accept_license: true
+    home_assistant_integration_mqtt_broker_host: "localhost"
+    home_assistant_integration_mqtt_broker_port: 1883
+    home_assistant_integration_mqtt_username: "homeassistant"
+    home_assistant_integration_mqtt_password: "test-password"
+    
+    # InfluxDB Integration
     home_assistant_integration_enable_influxdb: true
+    home_assistant_integration_influxdb_accept_license: true
+    home_assistant_integration_influxdb_host: "localhost"
+    home_assistant_integration_influxdb_port: 8086
+    
+    # Voice Assistant Integration
     home_assistant_integration_enable_voice_assistant: true
+    home_assistant_integration_voice_assistant_accept_license: true
+    home_assistant_integration_voice_assistant_addon: "a0d7b954_rhasspy"
+    home_assistant_integration_voice_assistant_type: "local"
+    
+    # SSH Integration
     home_assistant_integration_enable_ssh: true
+    home_assistant_integration_ssh_accept_license: true
     home_assistant_integration_ssh_public_key: "ssh-rsa AAAA... molecule-test-key"
+    
     override_paths:
       config_dir: "{{ test_base_dir }}/config"
       hassio_dir: "{{ test_base_dir }}/usr/share/hassio"
@@ -28,7 +49,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: '0755'
+        mode: "{{ '0700' if '.ssh' in item else '0755' }}"
         owner: "{{ home_assistant_integration_user }}"
         group: "{{ home_assistant_integration_user }}"
       loop:

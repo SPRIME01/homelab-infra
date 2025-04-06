@@ -3,19 +3,16 @@
   hosts: all
   become: true
   vars:
-    k3s_agent_test_mode: true
     test_base_dir: "/tmp/k3s-agent-test"
     k3s_agent_config_dir: "{{ test_base_dir }}/etc/rancher/k3s"
     k3s_agent_data_dir: "{{ test_base_dir }}/var/lib/rancher/k3s"
     k3s_agent_service_file: "{{ test_base_dir }}/etc/systemd/system/k3s-agent.service"
     k3s_agent_binary: "{{ test_base_dir }}/usr/local/bin/k3s"
+    k3s_agent_test_mode: true
     k3s_agent_token: "test-token-value"
     k3s_agent_server_url: "https://127.0.0.1:6443"
-    k3s_agent_version: "v1.28.4+k3s1"
-    k3s_agent_flags:
-      - "--node-label=test=molecule"
+    k3s_agent_skip_service: true
     k3s_agent_skip_download: true
-    k3s_agent_skip_start: true
 
   pre_tasks:
     - name: Create test directories
@@ -42,8 +39,34 @@
           exit 0
         mode: '0755'
 
+    - name: Create mock service file
+      ansible.builtin.copy:
+        dest: "{{ k3s_agent_service_file }}"
+        content: |
+          [Unit]
+          Description=K3s Agent
+          Documentation=https://k3s.io
+          After=network-online.target
+
+          [Service]
+          Type=notify
+          ExecStart=/usr/local/bin/k3s agent --server {{ k3s_agent_server_url }} --token {{ k3s_agent_token }}
+          KillMode=process
+          Delegate=yes
+          LimitNOFILE=1048576
+          LimitNPROC=infinity
+          LimitCORE=infinity
+          TasksMax=infinity
+          TimeoutStartSec=0
+          Restart=always
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
   roles:
-    - role: k3s_agent
+    - role: ../../
 
   post_tasks:
     - name: Show test results

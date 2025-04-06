@@ -35,3 +35,4 @@
       loop:
         - /etc/ssh
         - /etc/ssh/sshd_config.d
+        - /run/sshd

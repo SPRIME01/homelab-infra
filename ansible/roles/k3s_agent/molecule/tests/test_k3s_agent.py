@@ -31,7 +31,10 @@ def test_k3s_service_file_exists(host):
     service_file = host.file(f"{TEST_BASE_DIR}/etc/systemd/system/k3s-agent.service")
     assert service_file.exists
     assert service_file.is_file
-    assert "K3s Agent" in service_file.content_string
+    assert service_file.mode == 0o644
+    content = service_file.content_string
+    assert 'Description=K3s Agent' in content
+    assert 'ExecStart=/usr/local/bin/k3s agent' in content
 
 
 def test_containerd_dir_exists(host):

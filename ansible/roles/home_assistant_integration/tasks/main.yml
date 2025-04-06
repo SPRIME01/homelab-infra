@@ -2,6 +2,8 @@
 - name: Set facts for testing environment
   ansible.builtin.set_fact:
     ansible_os_family: "{{ ansible_os_family | default('Debian') }}"
+    is_testing: "{{ home_assistant_integration_testing | default(false) | bool }}"
+    home_assistant_integration_user: "{{ home_assistant_integration_user | default('homeassistant') }}"
   when: home_assistant_integration_testing | default(false) | bool
 
 - name: Include variables
@@ -10,15 +12,13 @@
 
 - name: Set base directories
   ansible.builtin.set_fact:
-    config_base_dir: "{{ config_base_dir | default('/config') }}"
-    hassio_base_dir: "{{ hassio_base_dir | default('/usr/share/hassio') }}"
-    is_testing: "{{ home_assistant_integration_testing | default(false) | bool }}"
-    home_assistant_integration_user: "{{ home_assistant_integration_user | default('homeassistant') }}"
+    config_base_dir: "{{ test_base_dir + '/config' if is_testing else '/config' }}"
+    hassio_base_dir: "{{ test_base_dir + '/usr/share/hassio' if is_testing else '/usr/share/hassio' }}"
 
 - name: Set file ownership variables
   ansible.builtin.set_fact:
-    file_owner: "{{ is_testing | ternary(ansible_user_id, home_assistant_integration_user) }}"
-    file_group: "{{ is_testing | ternary(ansible_user_gid, home_assistant_integration_user) }}"
+    file_owner: "{{ home_assistant_integration_user }}"
+    file_group: "{{ home_assistant_integration_user }}"
 
 - name: Create integrations directory
   ansible.builtin.file:

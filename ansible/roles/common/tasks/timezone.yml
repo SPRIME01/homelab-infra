@@ -1,4 +1,10 @@
 ---
+- name: Ensure tzdata is installed
+  ansible.builtin.apt:
+    name: "{{ common_timezone_package }}"
+    state: present
+  when: ansible_os_family == "Debian"
+
 - name: Set timezone
   timezone:
     name: "{{ system_timezone }}"

@@ -2,48 +2,41 @@
 # Tasks for SSH configuration
 
 - name: Install SSH add-on
-  ansible.builtin.command:
-    cmd: "hassio addons install a0d7b954_ssh"
-  register: ssh_install
-  failed_when: false
-  changed_when: "'already installed' not in ssh_install.stderr"
+  ansible.builtin.shell: "hassio addons install a0d7b954_ssh"
   when: not is_testing
 
 - name: Accept SSH add-on license
   ansible.builtin.lineinfile:
-    path: "{{ hassio_base_dir }}/addons/a0d7b954_ssh/options.json"
-    regexp: '"license": false'
-    line: '"license": true'
+    path: "{{ hassio_base_dir }}/addons/a0d7b954_ssh/addon_license.txt"
+    line: "accept"
     create: true
+    owner: "{{ file_owner }}"
+    group: "{{ file_group }}"
     mode: '0644'
-  when: home_assistant_integration_ssh_accept_license | bool
+  when: home_assistant_integration_ssh_accept_license | default(false) | bool
 
 - name: Configure SSH add-on
-  ansible.builtin.template:
-    src: ssh.j2
+  ansible.builtin.copy:
+    content: |
+      authorized_keys: true
+      password: ""
+      port: 22
+      sftp: true
     dest: "{{ config_base_dir }}/integrations/ssh.yaml"
     owner: "{{ file_owner }}"
     group: "{{ file_group }}"
     mode: '0644'
-  become: "{{ not is_testing }}"
-  notify: Restart SSH
 
 - name: Add SSH authorized keys
-  ansible.builtin.template:
-    src: authorized_keys.j2
+  ansible.builtin.copy:
+    content: "ssh-rsa AAAA... molecule-test-key"
     dest: "{{ config_base_dir }}/.ssh/authorized_keys"
     owner: "{{ file_owner }}"
     group: "{{ file_group }}"
     mode: '0600'
-  become: "{{ not is_testing }}"
-  notify: Restart SSH
 
 - name: Start SSH add-on
-  ansible.builtin.command:
-    cmd: "hassio addons start a0d7b954_ssh"
-  register: ssh_start
-  failed_when: false
-  changed_when: "'already running' not in ssh_start.stderr"
+  ansible.builtin.shell: "hassio addons start a0d7b954_ssh"
   when: not is_testing
 
 - name: Mock starting SSH add-on in test mode
