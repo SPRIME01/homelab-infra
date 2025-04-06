@@ -9,11 +9,14 @@
     k3s_server_data_dir: "{{ test_root }}/var/lib/rancher/k3s"
     k3s_server_binary: "{{ test_root }}/usr/local/bin/k3s"
     k3s_server_install_dir: "{{ test_root }}/usr/local/bin"
+    k3s_server_service_file: "{{ test_root }}/etc/systemd/system/k3s.service"
     
     # Mocked dependencies
     k3s_server_skip_download: true
     k3s_server_skip_service: true
     k3s_server_mock_token: "K10aec3d6cfdad915d2c41a9f4cf1c319add2222f97d154addd1a8d0e890::server:mock-token-for-testing"
+    k3s_server_first_server: false
+    k3s_server_url: "https://127.0.0.1:6443"
 
   pre_tasks:
     - name: Create test directories 
@@ -24,8 +27,10 @@
       loop:
         - "{{ test_root }}"
         - "{{ k3s_server_config_dir }}"
+        - "{{ k3s_server_config_dir }}/server"
         - "{{ k3s_server_data_dir }}/server"
         - "{{ k3s_server_install_dir }}"
+        - "{{ test_root }}/etc/systemd/system"
 
     - name: Create mock k3s binary
       ansible.builtin.copy:
@@ -35,6 +40,32 @@
           echo "Mock K3s binary for testing"
           exit 0
         mode: '0755'
+
+    - name: Create mock service file
+      ansible.builtin.copy:
+        dest: "{{ k3s_server_service_file }}"
+        content: |
+          [Unit]
+          Description=Lightweight Kubernetes (K3s) - Server
+          Documentation=https://k3s.io
+          After=network-online.target
+
+          [Service]
+          Type=notify
+          ExecStart=/usr/local/bin/k3s server --server {{ k3s_server_url }}
+          KillMode=process
+          Delegate=yes
+          LimitNOFILE=1048576
+          LimitNPROC=infinity
+          LimitCORE=infinity
+          TasksMax=infinity
+          TimeoutStartSec=0
+          Restart=always
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
 
     - name: Create mock token file
       ansible.builtin.copy:
