@@ -6,42 +6,60 @@
     test_base_dir: "/tmp/jetson-test"
 
   tasks:
-    - name: Check if test directory exists
+    - name: Check test directory structure
       ansible.builtin.stat:
-        path: "{{ test_base_dir }}"
-      register: test_dir
+        path: "{{ item }}"
+      register: dir_check
+      loop:
+        - "{{ test_base_dir }}"
+        - "{{ test_base_dir }}/proc/device-tree"
+        - "{{ test_base_dir }}/etc/tegra-power"
+        - "{{ test_base_dir }}/usr/local/bin"
 
-    - name: Verify test directory
+    - name: Verify directories exist
       ansible.builtin.assert:
         that:
-          - test_dir.stat.exists
-          - test_dir.stat.isdir
-        fail_msg: "Test directory not created properly"
-        success_msg: "Test directory exists and is a directory"
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "Required directory {{ item.invocation.module_args.path }} not properly created"
+        success_msg: "Directory {{ item.invocation.module_args.path }} exists and is valid"
+      loop: "{{ dir_check.results }}"
 
-    - name: Check if power management service exists
+    - name: Check mock files existence
       ansible.builtin.stat:
-        path: "{{ test_base_dir }}/etc/systemd/system/jetson-power.service"
-      register: power_service
+        path: "{{ item }}"
+      register: file_check
+      loop:
+        - "{{ test_base_dir }}/proc/device-tree/model"
+        - "/usr/local/bin/nvpmodel"
+        - "/usr/local/bin/jetson_clocks"
 
-    - name: Verify power management service
+    - name: Verify mock files
       ansible.builtin.assert:
         that:
-          - power_service.stat.exists
-          - power_service.stat.isfile
-        fail_msg: "Power management service not created properly"
-        success_msg: "Power management service exists and is a file"
+          - item.stat.exists
+          - item.stat.isfile
+          - item.stat.mode == '0444' if 'model' in item.invocation.module_args.path else item.stat.mode == '0755'
+        fail_msg: "Mock file {{ item.invocation.module_args.path }} not properly created"
+        success_msg: "Mock file {{ item.invocation.module_args.path }} exists with correct permissions"
+      loop: "{{ file_check.results }}"
 
-    - name: Check if power management script exists
-      ansible.builtin.stat:
-        path: "{{ test_base_dir }}/usr/local/bin/jetson-power-setup.sh"
-      register: power_script
+    - name: Verify model file content
+      ansible.builtin.command: "cat {{ test_base_dir }}/proc/device-tree/model"
+      register: model_content
+      changed_when: false
+      failed_when: model_content.stdout != "NVIDIA Jetson AGX Orin"
 
-    - name: Verify power management script
+    - name: Check if environment variable is set
+      ansible.builtin.shell: "grep DEVICE_TREE_PATH /etc/environment"
+      register: env_check
+      changed_when: false
+      failed_when: false
+
+    - name: Verify environment variable
       ansible.builtin.assert:
         that:
-          - power_script.stat.exists
-          - power_script.stat.isfile
-          - power_script.stat.executable
-        fail_msg: "Power management script not created properly"
-        success_msg: "Power management script exists and is executable"
+          - env_check.rc == 0
+          - env_check.stdout is search(test_base_dir + '/proc/device-tree')
+        fail_msg: "DEVICE_TREE_PATH environment variable not properly set"
+        success_msg: "DEVICE_TREE_PATH environment variable correctly configured"
