@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as k8s from "@pulumi/kubernetes";
 import { provider } from "./k8sProvider";
+import { DataNamespace } from "./dataNamespace";
 
 /**
  * Input properties for the ClusterSetup component
@@ -25,6 +26,18 @@ export interface ClusterSetupArgs {
      * Optional prefix for resources created by this component
      */
     namePrefix?: string;
+
+    /**
+     * Data namespace configuration
+     */
+    dataNamespace?: {
+        quotas?: {
+            cpu: { request: string; limit: string; };
+            memory: { request: string; limit: string; };
+            storage?: { capacity: string; };
+            pods?: number;
+        };
+    };
 }
 
 /**
@@ -46,6 +59,11 @@ export class ClusterSetup extends pulumi.ComponentResource {
      * Node labels applied by this component
      */
     public readonly nodeLabels: pulumi.Output<k8s.core.v1.Node>[];
+
+    /**
+     * The data namespace component
+     */
+    public readonly dataNamespace: DataNamespace;
 
     constructor(name: string, args: ClusterSetupArgs = {}, opts?: pulumi.ComponentResourceOptions) {
         super("homelab:k8s:ClusterSetup", name, args, opts);
@@ -150,10 +168,17 @@ export class ClusterSetup extends pulumi.ComponentResource {
             );
         });
 
+        // Create data namespace
+        this.dataNamespace = new DataNamespace(`${prefix}data`, {
+            quotas: args.dataNamespace?.quotas,
+            namePrefix: prefix
+        }, { provider, parent: this });
+
         this.registerOutputs({
             namespaces: this.namespaces,
             serviceAccounts: this.serviceAccounts,
             nodeLabels: this.nodeLabels,
+            dataNamespace: this.dataNamespace,
         });
     }
 }
