@@ -6,3 +6,7 @@ homelab_infra.egg-info/SOURCES.txt
 homelab_infra.egg-info/dependency_links.txt
 homelab_infra.egg-info/requires.txt
 homelab_infra.egg-info/top_level.txt
+tests/test_k8s_metrics.py
+tests/test_loki_integration.py
+tests/test_metrics_integration.py
+tests/test_prometheus_integration.py
