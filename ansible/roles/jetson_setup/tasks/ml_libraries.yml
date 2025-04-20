@@ -1,18 +1,11 @@
 ---
-- name: Mock ML libraries setup (test mode)
-  ansible.builtin.debug:
-    msg: "Would configure ML libraries in test mode"
-  when: ansible_check_mode or is_test_mode
-
 - name: Install ML libraries
   ansible.builtin.package:
     name: "{{ jetson_setup_ml_libraries }}"
     state: present
-  when: not ansible_check_mode and not is_test_mode
 
 - name: Configure ML library paths
   ansible.builtin.template:
     src: ml_paths.conf.j2
     dest: /etc/ld.so.conf.d/nvidia-ml.conf
     mode: "0644"
-  when: not ansible_check_mode and not is_test_mode
