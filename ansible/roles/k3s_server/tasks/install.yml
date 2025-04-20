@@ -54,3 +54,13 @@
     daemon_reload: true
   when: not ansible_check_mode and not k3s_server_skip_service | default(false)
   become: true
+
+- name: Log K3s server installation status
+  ansible.builtin.debug:
+    msg: "K3s server installation status: {{ k3s_binary }}"
+
+- name: Validate K3s server installation
+  ansible.builtin.assert:
+    that:
+      - k3s_binary.stat.exists
+    fail_msg: "K3s server installation failed"

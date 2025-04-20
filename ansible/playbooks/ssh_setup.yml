@@ -149,6 +149,16 @@
       ansible.builtin.debug:
         msg: "SSH connectivity to {{ ansible_host }}: {{ 'SUCCESS' if ssh_test.rc == 0 else 'FAILED - ' + ssh_test.stderr }}"
 
+    - name: Log SSH key generation status
+      ansible.builtin.debug:
+        msg: "SSH key generation status: {{ ssh_pubkey_content }}"
+
+    - name: Validate SSH key generation
+      ansible.builtin.assert:
+        that:
+          - ssh_pubkey_content is defined
+        fail_msg: "SSH key generation failed"
+
   handlers:
     - name: Restart SSH
       ansible.builtin.service:

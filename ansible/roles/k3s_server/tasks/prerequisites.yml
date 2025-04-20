@@ -12,6 +12,21 @@
     update_cache: true
   become: true
 
+- name: Log package installation status
+  ansible.builtin.debug:
+    msg: "Package installation status: {{ ansible_facts.packages }}"
+
+- name: Validate package installation
+  ansible.builtin.assert:
+    that:
+      - "'curl' in ansible_facts.packages"
+      - "'iptables' in ansible_facts.packages"
+      - "'apparmor-utils' in ansible_facts.packages"
+      - "'open-iscsi' in ansible_facts.packages"
+      - "'nfs-common' in ansible_facts.packages"
+      - "'apt-transport-https' in ansible_facts.packages"
+    fail_msg: "Package installation failed"
+
 - name: Create K3s configuration directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -23,6 +38,20 @@
     - "{{ k3s_server_config_dir }}"
     - "{{ k3s_server_config_dir }}/server"
   become: true
+
+- name: Log directory creation status
+  ansible.builtin.debug:
+    msg: "Directory creation status: {{ item }}"
+  with_items:
+    - "{{ k3s_server_config_dir }}"
+    - "{{ k3s_server_config_dir }}/server"
+
+- name: Validate directory creation
+  ansible.builtin.assert:
+    that:
+      - "ansible_facts['ansible_facts']['files']['{{ k3s_server_config_dir }}']['exists']"
+      - "ansible_facts['ansible_facts']['files']['{{ k3s_server_config_dir }}/server']['exists']"
+    fail_msg: "Directory creation failed"
 
 - name: Check if running in WSL
   ansible.builtin.command: grep -q Microsoft /proc/version
@@ -48,3 +77,17 @@
       ansible.builtin.command: sysctl -p
       become: true
       changed_when: true
+
+    - name: Log WSL-specific configuration status
+      ansible.builtin.debug:
+        msg: "WSL-specific configuration status: {{ item }}"
+      with_items:
+        - "net.ipv4.ip_forward=1"
+        - "net.ipv4.conf.all.forwarding=1"
+
+    - name: Validate WSL-specific configuration
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['ansible_facts']['sysctl']['net.ipv4.ip_forward'] == '1'"
+          - "ansible_facts['ansible_facts']['sysctl']['net.ipv4.conf.all.forwarding'] == '1'"
+        fail_msg: "WSL-specific configuration failed"

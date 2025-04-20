@@ -66,3 +66,23 @@
     append: true
     state: present
   when: ansible_os_family == "Debian"
+
+- name: Log SSH configuration status
+  ansible.builtin.debug:
+    msg: "SSH configuration status: {{ sshd_config }}"
+
+- name: Validate SSH configuration
+  ansible.builtin.assert:
+    that:
+      - sshd_config is defined
+    fail_msg: "SSH configuration failed"
+
+- name: Log password policy configuration status
+  ansible.builtin.debug:
+    msg: "Password policy configuration status: {{ pwquality_conf }}"
+
+- name: Validate password policy configuration
+  ansible.builtin.assert:
+    that:
+      - pwquality_conf is defined
+    fail_msg: "Password policy configuration failed"

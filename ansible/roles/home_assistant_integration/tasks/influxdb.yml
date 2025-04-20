@@ -9,6 +9,16 @@
   changed_when: "'already installed' not in influxdb_install.stderr"
   when: not is_testing
 
+- name: Log InfluxDB add-on installation status
+  ansible.builtin.debug:
+    msg: "InfluxDB add-on installation status: {{ influxdb_install }}"
+
+- name: Validate InfluxDB add-on installation
+  ansible.builtin.assert:
+    that:
+      - influxdb_install.rc == 0
+    fail_msg: "InfluxDB add-on installation failed"
+
 - name: Accept InfluxDB add-on license
   ansible.builtin.lineinfile:
     path: "{{ hassio_base_dir }}/addons/5ba9ddb2_influxdb/options.json"
@@ -28,6 +38,16 @@
   become: "{{ not is_testing }}"
   notify: Reload Home Assistant Configuration
 
+- name: Log InfluxDB add-on configuration status
+  ansible.builtin.debug:
+    msg: "InfluxDB add-on configuration status: {{ influxdb_config }}"
+
+- name: Validate InfluxDB add-on configuration
+  ansible.builtin.assert:
+    that:
+      - influxdb_config is defined
+    fail_msg: "InfluxDB add-on configuration failed"
+
 - name: Start InfluxDB add-on
   ansible.builtin.command:
     cmd: "hassio addons start 5ba9ddb2_influxdb"
@@ -35,6 +55,16 @@
   failed_when: false
   changed_when: "'already running' not in influxdb_start.stderr"
   when: not is_testing
+
+- name: Log InfluxDB add-on start status
+  ansible.builtin.debug:
+    msg: "InfluxDB add-on start status: {{ influxdb_start }}"
+
+- name: Validate InfluxDB add-on start
+  ansible.builtin.assert:
+    that:
+      - influxdb_start.rc == 0
+    fail_msg: "InfluxDB add-on start failed"
 
 - name: Mock starting InfluxDB add-on in test mode
   ansible.builtin.debug:

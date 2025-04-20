@@ -29,3 +29,16 @@
   loop: "{{ ufw_rules }}"
   when: ansible_os_family == "Debian" and configure_firewall | bool and ufw_rules is defined and not ansible_check_mode
   ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Log UFW rule configuration status
+  ansible.builtin.debug:
+    msg: "UFW rule configuration status: {{ item }}"
+  loop: "{{ ufw_rules }}"
+  when: ansible_os_family == "Debian" and configure_firewall | bool and ufw_rules is defined and not ansible_check_mode
+
+- name: Validate UFW rule configuration
+  ansible.builtin.assert:
+    that:
+      - ufw_rules is defined
+      - ufw_rules | length > 0
+    fail_msg: "UFW rule configuration failed"

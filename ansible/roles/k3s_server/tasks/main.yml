@@ -11,3 +11,14 @@
       - k3s_server_data_dir is defined
     fail_msg: "Required variables are not set"
     success_msg: "All required variables are present"
+
+- name: Log variable verification status
+  ansible.builtin.debug:
+    msg: "Variable verification status: {{ k3s_server_config_dir }}, {{ k3s_server_data_dir }}"
+
+- name: Validate variable verification
+  ansible.builtin.assert:
+    that:
+      - k3s_server_config_dir is defined
+      - k3s_server_data_dir is defined
+    fail_msg: "Variable verification failed"

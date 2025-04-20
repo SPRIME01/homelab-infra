@@ -37,3 +37,13 @@ disable-servicelb: true
 {% if k3s_enable_metrics_server %}
 enable-metrics-server: true
 {% endif %}
+
+# Log K3s server configuration status
+ansible.builtin.debug:
+  msg: "K3s server configuration status: {{ k3s_server_config_file }}"
+
+# Validate K3s server configuration
+ansible.builtin.assert:
+  that:
+    - k3s_server_config_file is defined
+  fail_msg: "K3s server configuration failed"

@@ -222,3 +222,13 @@
     owner: "{{ ansible_user_id }}"
     group: "{{ ansible_user_gid }}"
   become: true
+
+- name: Log K3s server configuration status
+  ansible.builtin.debug:
+    msg: "K3s server configuration status: {{ k3s_server_config_file }}"
+
+- name: Validate K3s server configuration
+  ansible.builtin.assert:
+    that:
+      - k3s_server_config_file is defined
+    fail_msg: "K3s server configuration failed"
