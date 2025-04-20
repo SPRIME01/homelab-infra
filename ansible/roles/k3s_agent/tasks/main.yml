@@ -64,3 +64,14 @@
 # Verify installation
 - name: Verify K3s agent installation
   ansible.builtin.import_tasks: verify.yml
+
+# Add error handling for K3s agent configuration
+- name: Log K3s agent configuration status
+  ansible.builtin.debug:
+    msg: "K3s agent configuration status: {{ k3s_agent_config_dir }}"
+
+- name: Validate K3s agent configuration
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_config_dir is defined
+    fail_msg: "K3s agent configuration failed"

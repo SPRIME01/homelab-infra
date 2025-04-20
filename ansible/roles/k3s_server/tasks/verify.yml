@@ -41,3 +41,13 @@
 - name: Show K3s service status
   ansible.builtin.debug:
     var: k3s_service_status
+
+- name: Log K3s server verification status
+  ansible.builtin.debug:
+    msg: "K3s server verification status: {{ k3s_service_status }}"
+
+- name: Validate K3s server verification
+  ansible.builtin.assert:
+    that:
+      - k3s_service_status is defined
+    fail_msg: "K3s server verification failed"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Mount cgroups for WSL
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mount-cgroups.sh
+RemainAfterExit=yes
+
+# Log WSL cgroups service configuration status
+ExecStartPost=/bin/sh -c 'echo "WSL cgroups service configuration status: $(systemctl is-active wsl-cgroups.service)"'
+
+# Validate WSL cgroups service configuration
+ExecStartPost=/bin/sh -c 'if [ "$(systemctl is-active wsl-cgroups.service)" != "active" ]; then echo "WSL cgroups service configuration failed"; exit 1; fi'
+
+[Install]
+WantedBy=default.target

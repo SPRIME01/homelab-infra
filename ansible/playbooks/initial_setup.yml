@@ -60,6 +60,16 @@
             wait_timeout: 300
           register: olm_deployments
 
+        - name: Log OLM installation status
+          ansible.builtin.debug:
+            msg: "OLM installation status: {{ olm_install }}"
+
+        - name: Validate OLM installation
+          ansible.builtin.assert:
+            that:
+              - olm_install.rc == 0
+            fail_msg: "OLM installation failed"
+
     - name: Install cert-manager operator
       kubernetes.core.k8s:
         state: present
@@ -89,6 +99,17 @@
             name: traefik-operator
             source: operatorhubio-catalog
             sourceNamespace: olm
+
+    - name: Log operator installation status
+      ansible.builtin.debug:
+        msg: "Operator installation status: cert-manager and traefik installed"
+
+    - name: Validate operator installations
+      ansible.builtin.assert:
+        that:
+          - "'cert-manager' in installed_operators.resources | map(attribute='metadata.name') | list"
+          - "'traefik' in installed_operators.resources | map(attribute='metadata.name') | list"
+        fail_msg: "Operator installation failed"
 
   post_tasks:
     - name: Verify K3s Server and Operator Installation

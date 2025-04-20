@@ -1,0 +1,20 @@
+---
+- name: Validate K3s server configuration
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig={{ k3s_server_kubeconfig_file }} get nodes
+  register: node_status
+  changed_when: false
+  failed_when: node_status.rc != 0
+  retries: 5
+  delay: 10
+  until: node_status.rc == 0
+
+- name: Log K3s server validation status
+  ansible.builtin.debug:
+    msg: "K3s server validation status: {{ node_status }}"
+
+- name: Validate K3s server node status
+  ansible.builtin.assert:
+    that:
+      - node_status.rc == 0
+    fail_msg: "K3s server validation failed"

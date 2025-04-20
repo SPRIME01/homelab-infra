@@ -25,6 +25,16 @@
         - k3s_server
         - install
 
+    - name: Log K3s server installation status
+      ansible.builtin.debug:
+        msg: "K3s server installation status: {{ k3s_server_install }}"
+
+    - name: Validate K3s server installation
+      ansible.builtin.assert:
+        that:
+          - k3s_server_install.rc == 0
+        fail_msg: "K3s server installation failed"
+
     - name: Wait for node-token to be generated
       ansible.builtin.wait_for:
         path: /var/lib/rancher/k3s/server/node-token
@@ -91,6 +101,16 @@
         - k3s
         - verify
 
+    - name: Log K3s server health status
+      ansible.builtin.debug:
+        msg: "K3s server health status: {{ k3s_nodes }}"
+
+    - name: Validate K3s server health
+      ansible.builtin.assert:
+        that:
+          - k3s_nodes.rc == 0
+        fail_msg: "K3s server health check failed"
+
 - name: Deploy K3s Agent on AI Nodes
   hosts: ai_nodes
   become: true
@@ -115,10 +135,21 @@
         K3S_TOKEN: "{{ hostvars[groups['control_nodes'][0]].k3s_token }}"
       args:
         creates: /usr/local/bin/k3s-agent
+      register: k3s_agent_install
       tags:
         - k3s
         - k3s_agent
         - install
+
+    - name: Log K3s agent installation status
+      ansible.builtin.debug:
+        msg: "K3s agent installation status: {{ k3s_agent_install }}"
+
+    - name: Validate K3s agent installation
+      ansible.builtin.assert:
+        that:
+          - k3s_agent_install.rc == 0
+        fail_msg: "K3s agent installation failed"
 
     - name: Wait for agent to register with cluster
       ansible.builtin.pause:
@@ -126,6 +157,26 @@
       tags:
         - k3s
         - k3s_agent
+
+    - name: Verify K3s agent registration
+      ansible.builtin.command:
+        cmd: kubectl get nodes
+      register: k3s_agent_nodes
+      changed_when: false
+      tags:
+        - k3s
+        - k3s_agent
+        - verify
+
+    - name: Log K3s agent registration status
+      ansible.builtin.debug:
+        msg: "K3s agent registration status: {{ k3s_agent_nodes }}"
+
+    - name: Validate K3s agent registration
+      ansible.builtin.assert:
+        that:
+          - k3s_agent_nodes.rc == 0
+        fail_msg: "K3s agent registration failed"
 
 - name: Configure K3s Cluster Elements
   hosts: control_nodes

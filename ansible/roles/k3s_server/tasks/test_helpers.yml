@@ -41,3 +41,16 @@
         dest: "{{ k3s_server_service_file }}"
         mode: '0644'
       when: not ansible_check_mode
+
+    - name: Log test environment setup status
+      ansible.builtin.debug:
+        msg: "Test environment setup status: {{ k3s_server_binary }}, {{ k3s_server_config_dir }}, {{ k3s_server_data_dir }}, {{ k3s_server_service_file }}"
+
+    - name: Validate test environment setup
+      ansible.builtin.assert:
+        that:
+          - k3s_server_binary is defined
+          - k3s_server_config_dir is defined
+          - k3s_server_data_dir is defined
+          - k3s_server_service_file is defined
+        fail_msg: "Test environment setup failed"

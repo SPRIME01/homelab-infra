@@ -20,5 +20,11 @@ TimeoutStartSec=0
 Restart=always
 RestartSec=5s
 
+# Log K3s service configuration status
+ExecStartPost=/bin/sh -c 'echo "K3s service configuration status: $(systemctl is-active {{ k3s_server_service_name }})"'
+
+# Validate K3s service configuration
+ExecStartPost=/bin/sh -c 'if [ "$(systemctl is-active {{ k3s_server_service_name }})" != "active" ]; then echo "K3s service configuration failed"; exit 1; fi'
+
 [Install]
 WantedBy=multi-user.target
