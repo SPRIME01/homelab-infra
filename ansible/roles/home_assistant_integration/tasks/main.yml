@@ -53,3 +53,7 @@
 - name: Configure Home Assistant Voice Assistant integration
   ansible.builtin.include_tasks: voice_assistant.yml
   when: home_assistant_integration_enable_voice_assistant | default(false) | bool
+
+- name: Configure Home Assistant MQTT integration
+  ansible.builtin.include_tasks: mqtt.yml
+  when: home_assistant_integration_enable_mqtt | default(false) | bool
