@@ -33,3 +33,6 @@ ha_yellow_user: "{{ vault_ha_yellow_user }}"
 # Pulumi configuration from .env file
 pulumi_config_passphrase: "{{ lookup('env', 'PULUMI_CONFIG_PASSPHRASE') }}"
 pulumi_backend_url: "{{ lookup('env', 'PULUMI_BACKEND_URL') }}"
+
+# SSH configuration issues fixed
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

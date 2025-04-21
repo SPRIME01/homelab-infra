@@ -154,6 +154,23 @@
     - role: home_assistant_integration
       tags: home_automation
 
+  tasks:
+    - name: Configure Home Assistant MQTT integration
+      ansible.builtin.include_tasks: mqtt.yml
+      when: home_assistant_integration_enable_mqtt | default(false) | bool
+
+    - name: Configure Home Assistant SSH integration
+      ansible.builtin.include_tasks: ssh.yml
+      when: home_assistant_integration_enable_ssh | default(false) | bool
+
+    - name: Configure Home Assistant InfluxDB integration
+      ansible.builtin.include_tasks: influxdb.yml
+      when: home_assistant_integration_enable_influxdb | default(false) | bool
+
+    - name: Configure Home Assistant Voice Assistant integration
+      ansible.builtin.include_tasks: voice_assistant.yml
+      when: home_assistant_integration_enable_voice_assistant | default(false) | bool
+
   post_tasks:
     - name: Verify Home Automation Setup
       ansible.builtin.debug:
