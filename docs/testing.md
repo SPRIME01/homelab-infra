@@ -1,8 +1,21 @@
 # Testing Workflow
-- Local Development: Test code with pre-commit hooks and manual test runs
-- CI/CD Pipeline: Automated testing via GitHub Actions on push or pull request
-- Monitoring: Track test results, metrics, and logs through dashboards
-- Alert: Get notified of test failures or system anomalies
+
+This document outlines the testing strategy and workflow for the `homelab-infra` repository. The project employs a multi-layered testing approach to ensure the reliability and correctness of the infrastructure code and configurations.
+
+**Overall Testing Strategy:**
+
+*   **Ansible Testing:** Validating Ansible roles and playbooks using linting, syntax checks, dry-runs, and full execution checks (often via Molecule).
+*   **Pulumi Testing:** Validating Pulumi infrastructure code using TypeScript checks, unit tests, and previews.
+*   **Molecule Testing:** Role-based testing for Ansible, often using Docker containers for isolated environments, checking idempotency and configuration.
+*   **Testinfra/Pytest:** Verifying the state of the infrastructure, Kubernetes resources, services, and monitoring components after deployment or configuration.
+*   **Pre-commit Hooks:** Automated checks run before committing code (linting, formatting, quick tests).
+*   **End-to-End Tests:** Verifying the entire infrastructure integration using Pytest.
+
+**Workflow Steps:**
+- Local Development: Test code with pre-commit hooks and manual test runs using the scripts detailed below.
+- CI/CD Pipeline: Automated testing via GitHub Actions on push or pull request.
+- Monitoring: Track test results, metrics, and logs through Grafana dashboards.
+- Alerting: Get notified of test failures or system anomalies via AlertManager.
 
 ## 🚀 Getting Started
 
@@ -46,6 +59,8 @@ cp .env.example .env
 ```
 
 ## 🔍 Local Testing
+
+This section details how to run the various test suites locally.
 
 ### Running Ansible Role Tests
 To test individual Ansible roles:
@@ -133,6 +148,13 @@ uv run pytest tests/ -m k8s
 PUSHGATEWAY_URL=http://localhost:9091 TEST_RUN_ID=manual-$(date +%s) pytest tests/
 ```
 
+### Running Home Assistant Specific Tests
+Execute tests specific to the Home Assistant configuration roles:
+```bash
+./scripts/test-home-assistant.sh
+```
+*Note: This script sets up a mock environment and may require `sudo` permissions.*
+
 ## 🔄 Pre-commit Hooks
 Pre-commit hooks run automatically when you commit code to ensure quality and consistency.
 
@@ -177,6 +199,8 @@ The hooks are defined in .pre-commit-config.yaml. Key configurations:
 ```
 
 ### Running Pre-commit Manually
+While hooks run automatically on `git commit`, you can manually trigger them:
+
 Test your code against all pre-commit hooks:
 ```bash
 pre-commit run --all-files
@@ -229,7 +253,7 @@ The GitHub Actions workflows use test matrices to test multiple configurations i
 # Example matrix from ansible-tests.yml
 strategy:
   matrix:
-    role: 
+    role:
       - k3s_server
       - k3s_agent
       - home_assistant_integration
@@ -309,29 +333,29 @@ def test_cluster_health(host, prometheus_test_metrics):
     """Test cluster health with Prometheus metrics recording."""
     # Setup test metrics
     prometheus_test_metrics.start_timer('cluster_health')
-    
+
     # Perform the actual test
     result = host.run('kubectl get nodes')
-    
+
     # Record test results
     if result.rc == 0:
         prometheus_test_metrics.increment_success()
-        
+
         # Record custom metrics
         node_count = len(result.stdout.strip().split('\n')) - 1
         prometheus_test_metrics.add_metric('k8s_node_count', node_count)
-        
+
         # Record resource usage
         mem_info = host.run('free -m').stdout
-        prometheus_test_metrics.add_metric('host_memory_used_mb', 
+        prometheus_test_metrics.add_metric('host_memory_used_mb',
                                           int(re.search(r'Mem:\s+\d+\s+(\d+)', mem_info).group(1)))
     else:
         prometheus_test_metrics.increment_failure()
-    
+
     # Stop timer and push metrics
     prometheus_test_metrics.stop_timer('cluster_health')
     prometheus_test_metrics.push_metrics()
-    
+
     # Assert test condition
     assert result.rc == 0, f"Failed to get nodes: {result.stderr}"
 ```

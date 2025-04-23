@@ -1,0 +1,117 @@
+---
+- name: Configure Static IP Addresses and Network Settings
+  hosts: all # Target all hosts, use --limit to select specific hosts
+  become: true
+  gather_facts: true
+  vars:
+    # Default behavior: configure static IP if variables are defined for the host
+    # Set to false in host_vars to skip static IP config for a specific host
+    configure_static_ip: true
+
+    # Default behavior: only apply changes if the desired state differs.
+    # Set to true via -e force_static_ip_override=true to ensure the nmcli task runs
+    # and potentially modifies an existing connection profile even if only minor details changed.
+    # Note: This doesn't delete other profiles for the interface.
+    force_static_ip_override: false # Set via extra-vars if needed
+
+    # Host variables expected (define these in inventory/host_vars/myhostname.yml):
+    # network_interface: eth0
+    # static_ip_address: 192.168.1.100
+    # static_ip_prefix: 24
+    # static_gateway: 192.168.1.1
+    # static_dns_servers:
+    #   - 1.1.1.1
+    #   - 8.8.8.8
+    # static_routes: # Optional
+    #   - network: 10.10.0.0
+    #     prefix: 16
+    #     gateway: 192.168.1.254
+
+  tasks:
+    - name: Ensure NetworkManager is installed (Ubuntu/Debian)
+      ansible.builtin.apt:
+        name: network-manager
+        state: present
+      when: ansible_os_family == "Debian"
+
+    # Add similar tasks for other OS families if needed (e.g., RHEL/Fedora using dnf)
+
+    - name: Ensure NetworkManager service is running and enabled
+      ansible.builtin.service:
+        name: NetworkManager
+        state: started
+        enabled: true
+
+    - name: Configure Static IP using NetworkManager
+      when:
+        - configure_static_ip | default(true)
+        - network_interface is defined
+        - static_ip_address is defined
+        - static_ip_prefix is defined
+        - static_gateway is defined
+        - static_dns_servers is defined
+      community.general.nmcli:
+        conn_name: "Static {{ network_interface }}" # Manage a specific connection profile
+        ifname: "{{ network_interface }}"
+        type: ethernet
+        ip4: "{{ static_ip_address }}/{{ static_ip_prefix }}"
+        gw4: "{{ static_gateway }}"
+        dns4: "{{ static_dns_servers }}"
+        method4: manual
+        state: present # Idempotent: ensures configuration exists and matches
+        autoconnect: true
+      notify: Restart NetworkManager # Sometimes needed for changes to fully apply
+
+    - name: Configure Static Routes using NetworkManager
+      when:
+        - configure_static_ip | default(true)
+        - network_interface is defined
+        - static_routes is defined
+        - static_routes | length > 0
+      community.general.nmcli:
+        conn_name: "Static {{ network_interface }}" # Modify the same connection profile
+        ifname: "{{ network_interface }}"
+        routes4: "{{ static_routes | map(attribute='network') | zip(static_routes | map(attribute='prefix')) | map('join', '/') | zip(static_routes | map(attribute='gateway')) | map('join', ' ') | list }}"
+        # Example format for routes4: ["10.10.0.0/16 192.168.1.254", "172.16.0.0/12 192.168.1.253"]
+        state: present
+      notify: Restart NetworkManager
+
+    - name: Update /etc/hosts with entries for all managed nodes
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        block: |
+          # BEGIN ANSIBLE MANAGED BLOCK (Homelab Static IPs)
+          {% for host in ansible_play_hosts_all %}
+          {% if hostvars[host].static_ip_address is defined %}
+          {{ hostvars[host].static_ip_address }} {{ hostvars[host].ansible_hostname }} {{ hostvars[host].inventory_hostname }}
+          {% endif %}
+          {% endfor %}
+          # END ANSIBLE MANAGED BLOCK
+        marker: "# {mark} ANSIBLE MANAGED BLOCK (Homelab Static IPs)"
+        create: true # Create /etc/hosts if it doesn't exist
+        mode: '0644'
+
+    - name: Test connectivity to Gateway
+      ansible.builtin.command: "ping -c 3 {{ static_gateway }}"
+      register: ping_gateway_result
+      failed_when: ping_gateway_result.rc != 0
+      changed_when: false
+      when:
+        - configure_static_ip | default(true)
+        - static_gateway is defined
+
+    - name: Test connectivity to first DNS Server
+      ansible.builtin.command: "ping -c 3 {{ static_dns_servers[0] }}"
+      register: ping_dns_result
+      failed_when: ping_dns_result.rc != 0
+      changed_when: false
+      when:
+        - configure_static_ip | default(true)
+        - static_dns_servers is defined
+        - static_dns_servers | length > 0
+
+  handlers:
+    - name: Restart NetworkManager
+      ansible.builtin.service:
+        name: NetworkManager
+        state: restarted

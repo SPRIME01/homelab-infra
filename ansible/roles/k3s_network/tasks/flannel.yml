@@ -1,0 +1,136 @@
+---
+# ==============================================================================
+# Configure Flannel CNI via K3s Server Configuration
+#
+# Assumes K3s is installed and Flannel is the selected CNI (default or explicit).
+# This modifies the K3s config file (/etc/rancher/k3s/config.yaml) on SERVER nodes.
+# Changes typically require a K3s server restart.
+# ==============================================================================
+
+- name: Define Flannel configuration variables with defaults
+  ansible.builtin.set_fact:
+    k3s_cluster_cidr: "{{ k3s_cluster_cidr | default('10.42.0.0/16') }}"
+    k3s_service_cidr: "{{ k3s_service_cidr | default('10.43.0.0/16') }}"
+    # Options: vxlan (default), host-gw, wireguard-native, ipsec
+    k3s_flannel_backend: "{{ k3s_flannel_backend | default('vxlan') }}"
+    # Set MTU explicitly if needed, otherwise leave commented to let Flannel/K3s determine
+    # k3s_flannel_iface_mtu: "{{ k3s_flannel_iface_mtu | default(omit) }}"
+    # K3s enables Network Policy controller with Flannel by default.
+    # Set this to false ONLY if you explicitly want to disable it.
+    k3s_enable_network_policy: "{{ k3s_enable_network_policy | default(true) }}"
+  run_once: true # Define defaults once per play
+
+- name: Ensure K3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: '0755'
+  when: "'k3s_server' in group_names" # Run only on server nodes
+
+- name: Configure Cluster CIDR in K3s config
+  ansible.builtin.lineinfile:
+    path: /etc/rancher/k3s/config.yaml
+    regexp: '^cluster-cidr:'
+    line: "cluster-cidr: {{ k3s_cluster_cidr }}"
+    owner: root
+    group: root
+    mode: '0644'
+    create: true
+  when: "'k3s_server' in group_names"
+  notify: Restart k3s-server
+
+- name: Configure Service CIDR in K3s config
+  ansible.builtin.lineinfile:
+    path: /etc/rancher/k3s/config.yaml
+    regexp: '^service-cidr:'
+    line: "service-cidr: {{ k3s_service_cidr }}"
+    owner: root
+    group: root
+    mode: '0644'
+    create: true
+  when: "'k3s_server' in group_names"
+  notify: Restart k3s-server
+
+- name: Configure Flannel Backend in K3s config
+  ansible.builtin.lineinfile:
+    path: /etc/rancher/k3s/config.yaml
+    regexp: '^flannel-backend:'
+    line: "flannel-backend: {{ k3s_flannel_backend }}"
+    owner: root
+    group: root
+    mode: '0644'
+    create: true
+  when: "'k3s_server' in group_names"
+  notify: Restart k3s-server
+
+# Example for setting MTU via flannel-iface (adjust if needed based on backend)
+# - name: Configure Flannel Interface MTU in K3s config (if specified)
+#   ansible.builtin.lineinfile:
+#     path: /etc/rancher/k3s/config.yaml
+#     regexp: '^flannel-iface-mtu:'
+#     line: "flannel-iface-mtu: {{ k3s_flannel_iface_mtu }}"
+#     owner: root
+#     group: root
+#     mode: '0644'
+#     create: true
+#   when:
+#     - "'k3s_server' in group_names"
+#     - k3s_flannel_iface_mtu is defined
+#   notify: Restart k3s-server
+
+- name: Ensure Network Policy is explicitly enabled/disabled in K3s config
+  ansible.builtin.lineinfile:
+    path: /etc/rancher/k3s/config.yaml
+    # K3s enables network policy by default with flannel.
+    # We manage the '--disable-network-policy' flag.
+    regexp: '^disable-network-policy:'
+    line: "disable-network-policy: {{ not k3s_enable_network_policy }}"
+    owner: root
+    group: root
+    mode: '0644'
+    create: true
+  when: "'k3s_server' in group_names"
+  notify: Restart k3s-server
+
+# --- Verification Steps ---
+# Note: These run on the target server node after potential restart via handler.
+
+- name: Wait for K3s server node to become Ready after potential restart
+  ansible.builtin.command: >
+    {{ k3s_install_dir | default('/usr/local/bin') }}/kubectl get node {{ ansible_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: node_status
+  until: node_status.stdout == "True"
+  retries: 12 # Total wait time = retries * delay = 12 * 10s = 120s
+  delay: 10
+  changed_when: false
+  when: "'k3s_server' in group_names"
+
+- name: Verify NetworkPolicy API resource is available (if enabled)
+  ansible.builtin.command: >
+    {{ k3s_install_dir | default('/usr/local/bin') }}/kubectl api-resources --api-group=networking.k8s.io
+  register: api_resources
+  changed_when: false
+  failed_when: "'networkpolicies' not in api_resources.stdout"
+  when:
+    - "'k3s_server' in group_names"
+    - k3s_enable_network_policy | default(true)
+
+- name: Display verification info
+  ansible.builtin.debug:
+    msg:
+      - "K3s node {{ ansible_hostname }} is Ready."
+      - "Flannel backend configured: {{ k3s_flannel_backend }}"
+      - "Cluster CIDR: {{ k3s_cluster_cidr }}"
+      - "Service CIDR: {{ k3s_service_cidr }}"
+      - "Network Policy Enabled: {{ k3s_enable_network_policy }}"
+      - "NetworkPolicy API available: {{ 'Yes' if k3s_enable_network_policy | default(true) else 'N/A (Disabled)' }}"
+  when: "'k3s_server' in group_names"
+
+# Note: Add handlers to the main playbook or role meta/main.yml
+# Example handler:
+# handlers:
+#   - name: Restart k3s-server
+#     ansible.builtin.systemd:
+#       name: k3s-server
+#       state: restarted
+#     when: "'k3s_server' in group_names"

@@ -20,7 +20,10 @@ all:
               ansible_user: "{{ lookup('env', 'JETSON_USER') }}"
               node_type: "edge_device"
               cuda_enabled: true
+              cpu_cores: "{{ lookup('env', 'JETSON_CPU_CORES') }}"
+              memory_gb: "{{ lookup('env', 'JETSON_MEMORY_GB') }}"
               gpu_memory: "{{ lookup('env', 'JETSON_GPU_MEMORY') }}"
+              device_tree_path: "{{ lookup('env', 'DEVICE_TREE_PATH') }}"
         home_automation_nodes:
           hosts:
             ha_yellow:
