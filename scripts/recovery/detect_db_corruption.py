@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import os
-import subprocess
 import logging
-import sys
+import os
 import re
+import subprocess
+import sys
 
 # --- Configuration ---
 KUBECTL_CONTEXT = os.getenv("KUBECTL_CONTEXT", "homelab-cluster")
@@ -13,7 +13,9 @@ DB_CHECKS = {
     "postgresql": {
         "namespace": os.getenv("PG_NAMESPACE", "database"),
         "label_selector": os.getenv("PG_LABEL_SELECTOR", "app=postgresql"),
-        "container_name": os.getenv("PG_CONTAINER_NAME", "postgresql"), # Optional: specify container if multiple exist
+        "container_name": os.getenv(
+            "PG_CONTAINER_NAME", "postgresql"
+        ),  # Optional: specify container if multiple exist
         "corruption_patterns": [
             re.compile(r"PANIC:", re.IGNORECASE),
             re.compile(r"corrupted.*page", re.IGNORECASE),
@@ -34,8 +36,10 @@ DB_CHECKS = {
     },
     # Add checks for Redis if applicable (less common for log-based corruption detection)
 }
-LOG_LINES_TO_CHECK = int(os.getenv("LOG_LINES_TO_CHECK", "500")) # How many recent log lines to scan
-ALERT_COMMAND = os.getenv("ALERT_COMMAND") # Optional command for alerting
+LOG_LINES_TO_CHECK = int(
+    os.getenv("LOG_LINES_TO_CHECK", "500")
+)  # How many recent log lines to scan
+ALERT_COMMAND = os.getenv("ALERT_COMMAND")  # Optional command for alerting
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -43,6 +47,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
+
 
 # --- Helper Functions (reuse run_command, send_alert or define here) ---
 def run_command(command, check=True, timeout=60):
@@ -55,39 +60,46 @@ def run_command(command, check=True, timeout=60):
             stderr=subprocess.PIPE,
             check=check,
             text=True,
-            timeout=timeout
+            timeout=timeout,
         )
         # Limit logging potentially large stdout
         stdout_log = result.stdout.strip()
         # Don't log full logs here, just confirmation
-        if stdout_log: logging.info(f"Command executed successfully.")
-        if result.stderr: logging.warning(f"Command stderr:\n{result.stderr.strip()}")
+        if stdout_log:
+            logging.info(f"Command executed successfully.")
+        if result.stderr:
+            logging.warning(f"Command stderr:\n{result.stderr.strip()}")
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
         logging.error(f"Command timed out after {timeout}s: {' '.join(command)}")
         raise
     except subprocess.CalledProcessError as e:
         # Log non-zero exit code as warning for log fetching, might just mean no logs yet
-        logging.warning(f"Command failed with exit code {e.returncode}: {' '.join(command)}")
-        if e.stderr: logging.warning(f"Error output:\n{e.stderr.strip()}")
+        logging.warning(
+            f"Command failed with exit code {e.returncode}: {' '.join(command)}"
+        )
+        if e.stderr:
+            logging.warning(f"Error output:\n{e.stderr.strip()}")
         # Return empty string instead of raising for log fetching
         return ""
     except Exception as e:
         logging.error(f"Failed to run command {' '.join(command)}: {e}")
         raise
 
+
 def send_alert(message):
     # ... (same as in recover_service.py) ...
     logging.warning(f"ALERT: {message}")
     if ALERT_COMMAND:
         try:
-            full_command = f"{ALERT_COMMAND} \"{message}\""
+            full_command = f'{ALERT_COMMAND} "{message}"'
             logging.info(f"Executing alert command: {full_command}")
             subprocess.run(full_command, shell=True, check=True, timeout=30)
         except Exception as e:
             logging.error(f"Failed to send alert using command '{ALERT_COMMAND}': {e}")
     else:
         logging.warning("ALERT_COMMAND not set, only logging alert.")
+
 
 # --- Main Logic ---
 def check_db_logs(db_name, config):
@@ -101,30 +113,51 @@ def check_db_logs(db_name, config):
 
     try:
         # Get pod names
-        pod_names_output = run_command([
-            "kubectl", "get", "pods", "-n", namespace, "-l", label_selector,
-            "--context", KUBECTL_CONTEXT,
-            "-o", "jsonpath={.items[*].metadata.name}"
-        ], check=False) # Don't fail if pods are down
+        pod_names_output = run_command(
+            [
+                "kubectl",
+                "get",
+                "pods",
+                "-n",
+                namespace,
+                "-l",
+                label_selector,
+                "--context",
+                KUBECTL_CONTEXT,
+                "-o",
+                "jsonpath={.items[*].metadata.name}",
+            ],
+            check=False,
+        )  # Don't fail if pods are down
 
         if not pod_names_output:
-            logging.warning(f"No pods found for {db_name} with selector '{label_selector}' in namespace '{namespace}'. Skipping log check.")
-            return False # Cannot check logs if no pods
+            logging.warning(
+                f"No pods found for {db_name} with selector '{label_selector}' in namespace '{namespace}'. Skipping log check."
+            )
+            return False  # Cannot check logs if no pods
 
         pod_names = pod_names_output.split()
 
         for pod_name in pod_names:
             logging.info(f"Checking logs for pod '{pod_name}'...")
             log_cmd = [
-                "kubectl", "logs", pod_name, "-n", namespace,
-                "--context", KUBECTL_CONTEXT,
-                "--tail", str(LOG_LINES_TO_CHECK),
+                "kubectl",
+                "logs",
+                pod_name,
+                "-n",
+                namespace,
+                "--context",
+                KUBECTL_CONTEXT,
+                "--tail",
+                str(LOG_LINES_TO_CHECK),
             ]
             if container:
                 log_cmd.extend(["-c", container])
 
             try:
-                logs = run_command(log_cmd, check=False) # Don't fail if logs are empty or pod starting
+                logs = run_command(
+                    log_cmd, check=False
+                )  # Don't fail if logs are empty or pod starting
                 if not logs:
                     logging.info(f"No recent logs found for pod '{pod_name}'.")
                     continue
@@ -137,22 +170,25 @@ def check_db_logs(db_name, config):
                             found_issue = True
                             # Maybe break after first match per pod?
                             break
-                    if found_issue: break # Move to next pod if issue found in this one
+                    if found_issue:
+                        break  # Move to next pod if issue found in this one
 
             except Exception as log_e:
-                 # Log error fetching logs but continue if possible
-                 logging.error(f"Could not fetch logs for pod {pod_name}: {log_e}")
-
+                # Log error fetching logs but continue if possible
+                logging.error(f"Could not fetch logs for pod {pod_name}: {log_e}")
 
     except Exception as e:
         logging.error(f"Error checking logs for {db_name}: {e}")
         send_alert(f"Error occurred while checking {db_name} logs for corruption.")
-        found_issue = True # Treat error during check as potential issue
+        found_issue = True  # Treat error during check as potential issue
 
     if not found_issue:
-        logging.info(f"No potential corruption patterns found in recent logs for {db_name}.")
+        logging.info(
+            f"No potential corruption patterns found in recent logs for {db_name}."
+        )
 
-    return found_issue # Return True if potential issue found
+    return found_issue  # Return True if potential issue found
+
 
 def main():
     potential_issues_found = False
@@ -161,11 +197,16 @@ def main():
             potential_issues_found = True
 
     if potential_issues_found:
-        logging.warning("Potential database corruption issues detected. Manual investigation and restore from backup may be required.")
+        logging.warning(
+            "Potential database corruption issues detected. Manual investigation and restore from backup may be required."
+        )
         sys.exit(1)
     else:
-        logging.info("Database log checks completed without finding corruption patterns.")
+        logging.info(
+            "Database log checks completed without finding corruption patterns."
+        )
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

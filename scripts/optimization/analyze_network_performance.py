@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import os
 import logging
-import sys
-import subprocess
+import os
 import re
 import statistics
+import subprocess
+import sys
 
 # --- Configuration ---
 # Comma-separated list of node hostnames/IPs to test connectivity between

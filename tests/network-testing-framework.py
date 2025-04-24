@@ -1,15 +1,21 @@
-import subprocess
-import socket
-import time
-import threading
 import logging
 import os
-from typing import List, Dict, Tuple, Optional
+import socket
+import subprocess
+import threading
+import time
+from typing import Dict, List, Optional, Tuple
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 
 class NetworkTestFramework:
-    def __init__(self, components: List[str], external_targets: List[str], dns_servers: Optional[List[str]] = None):
+    def __init__(
+        self,
+        components: List[str],
+        external_targets: List[str],
+        dns_servers: Optional[List[str]] = None,
+    ):
         """
         components: List of hostnames/IPs of internal components to test.
         external_targets: List of external hostnames/IPs to test.
@@ -20,7 +26,9 @@ class NetworkTestFramework:
         self.dns_servers = dns_servers or ["8.8.8.8", "1.1.1.1"]
 
     # 1. Connectivity Testing
-    def test_connectivity(self, port: int = 80, timeout: float = 2.0) -> Dict[str, bool]:
+    def test_connectivity(
+        self, port: int = 80, timeout: float = 2.0
+    ) -> Dict[str, bool]:
         results = {}
         for host in self.components:
             try:
@@ -46,25 +54,30 @@ class NetworkTestFramework:
     # 3. Latency and Throughput Measurement
     def measure_latency(self, host: str, count: int = 4) -> Optional[float]:
         try:
-            output = subprocess.check_output(["ping", "-c", str(count), host], universal_newlines=True)
+            output = subprocess.check_output(
+                ["ping", "-c", str(count), host], universal_newlines=True
+            )
             for line in output.splitlines():
                 if "avg" in line or "Average" in line:
                     # Linux: rtt min/avg/max/mdev = 0.026/0.026/0.026/0.000 ms
-                    avg = line.split('/')[4]
+                    avg = line.split("/")[4]
                     return float(avg)
             return None
         except Exception as e:
             logging.warning(f"Latency measurement failed for {host} - {e}")
             return None
 
-    def measure_throughput(self, host: str, port: int = 5201, duration: int = 5) -> Optional[float]:
+    def measure_throughput(
+        self, host: str, port: int = 5201, duration: int = 5
+    ) -> Optional[float]:
         # Requires iperf3 server running on target
         try:
             output = subprocess.check_output(
                 ["iperf3", "-c", host, "-p", str(port), "-t", str(duration), "-J"],
-                universal_newlines=True
+                universal_newlines=True,
             )
             import json
+
             result = json.loads(output)
             bps = result["end"]["sum_received"]["bits_per_second"]
             mbps = bps / 1e6
@@ -98,7 +111,9 @@ class NetworkTestFramework:
         return results
 
     # 6. Failover Testing (if applicable)
-    def test_failover(self, vip: str, port: int = 80, failover_action=None, timeout: int = 60) -> bool:
+    def test_failover(
+        self, vip: str, port: int = 80, failover_action=None, timeout: int = 60
+    ) -> bool:
         """
         vip: Virtual IP or load balancer address.
         failover_action: Callable to trigger failover (e.g., stop primary node).
@@ -115,11 +130,15 @@ class NetworkTestFramework:
                 while time.time() - start < timeout:
                     try:
                         with socket.create_connection((vip, port), timeout=3.0):
-                            logging.info(f"Failover successful, VIP {vip}:{port} is reachable.")
+                            logging.info(
+                                f"Failover successful, VIP {vip}:{port} is reachable."
+                            )
                             return True
                     except Exception:
                         time.sleep(2)
-                logging.warning(f"Failover test failed: VIP {vip}:{port} not reachable after {timeout}s.")
+                logging.warning(
+                    f"Failover test failed: VIP {vip}:{port} not reachable after {timeout}s."
+                )
                 return False
             return True
         except Exception as e:
@@ -139,12 +158,22 @@ class NetworkTestFramework:
         logging.info("Measuring latency to all components...")
         for host in self.components:
             latency = self.measure_latency(host)
-            logging.info(f"Latency to {host}: {latency} ms" if latency else f"Latency to {host}: failed")
+            logging.info(
+                f"Latency to {host}: {latency} ms"
+                if latency
+                else f"Latency to {host}: failed"
+            )
 
-        logging.info("Measuring throughput to all components (requires iperf3 servers)...")
+        logging.info(
+            "Measuring throughput to all components (requires iperf3 servers)..."
+        )
         for host in self.components:
             throughput = self.measure_throughput(host)
-            logging.info(f"Throughput to {host}: {throughput} Mbps" if throughput else f"Throughput to {host}: failed")
+            logging.info(
+                f"Throughput to {host}: {throughput} Mbps"
+                if throughput
+                else f"Throughput to {host}: failed"
+            )
 
         logging.info("Testing external access...")
         ext_results = self.test_external_access()
@@ -157,14 +186,21 @@ class NetworkTestFramework:
                 logging.info("Starting periodic health check...")
                 self.run_all_tests()
                 time.sleep(interval_sec)
+
         t = threading.Thread(target=loop, daemon=True)
         t.start()
+
 
 # --- Example Usage ---
 
 if __name__ == "__main__":
     # Example configuration (replace with your actual component hostnames/IPs)
-    components = ["192.168.1.10", "192.168.1.20", "postgresql.databases.svc", "redis.caches.svc"]
+    components = [
+        "192.168.1.10",
+        "192.168.1.20",
+        "postgresql.databases.svc",
+        "redis.caches.svc",
+    ]
     external_targets = ["8.8.8.8", "1.1.1.1", "github.com"]
 
     framework = NetworkTestFramework(components, external_targets)

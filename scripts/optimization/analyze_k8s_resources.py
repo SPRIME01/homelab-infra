@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import os
-import logging
-import sys
-import subprocess
 import json
+import logging
+import os
+import subprocess
+import sys
 from collections import defaultdict
 
 # --- Configuration ---
@@ -12,12 +12,22 @@ KUBECTL_CONTEXT = os.getenv("KUBECTL_CONTEXT", "homelab-cluster")
 # Thresholds (similar to analyze_resource_usage.py, but using kubectl top)
 # Note: 'kubectl top' provides current usage, not historical average.
 # Use Prometheus integration (analyze_resource_usage.py) for average-based analysis.
-POD_CPU_LIMIT_NEAR_THRESHOLD = float(os.getenv("POD_CPU_LIMIT_NEAR_THRESHOLD", "90")) # % of limit
-POD_MEM_LIMIT_NEAR_THRESHOLD = float(os.getenv("POD_MEM_LIMIT_NEAR_THRESHOLD", "90")) # % of limit
-POD_CPU_REQUEST_LOW_THRESHOLD = float(os.getenv("POD_CPU_REQUEST_LOW_THRESHOLD", "10")) # % of request (current usage)
-POD_MEM_REQUEST_LOW_THRESHOLD = float(os.getenv("POD_MEM_REQUEST_LOW_THRESHOLD", "20")) # % of request (current usage)
+POD_CPU_LIMIT_NEAR_THRESHOLD = float(
+    os.getenv("POD_CPU_LIMIT_NEAR_THRESHOLD", "90")
+)  # % of limit
+POD_MEM_LIMIT_NEAR_THRESHOLD = float(
+    os.getenv("POD_MEM_LIMIT_NEAR_THRESHOLD", "90")
+)  # % of limit
+POD_CPU_REQUEST_LOW_THRESHOLD = float(
+    os.getenv("POD_CPU_REQUEST_LOW_THRESHOLD", "10")
+)  # % of request (current usage)
+POD_MEM_REQUEST_LOW_THRESHOLD = float(
+    os.getenv("POD_MEM_REQUEST_LOW_THRESHOLD", "20")
+)  # % of request (current usage)
 # Namespaces to exclude from analysis (comma-separated)
-EXCLUDED_NAMESPACES = os.getenv("EXCLUDED_NAMESPACES", "kube-system,monitoring").split(',')
+EXCLUDED_NAMESPACES = os.getenv("EXCLUDED_NAMESPACES", "kube-system,monitoring").split(
+    ","
+)
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -27,8 +37,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("K8sResourceAnalyzer")
 
+
 # --- Helper Functions ---
-def run_kubectl(command, context=KUBECTL_CONTEXT, parse_json=True, check=True, timeout=60):
+def run_kubectl(
+    command, context=KUBECTL_CONTEXT, parse_json=True, check=True, timeout=60
+):
     """Runs a kubectl command."""
     full_command = ["kubectl"] + command + ["--context", context]
     logger.info(f"Running command: {' '.join(full_command)}")
@@ -39,7 +52,7 @@ def run_kubectl(command, context=KUBECTL_CONTEXT, parse_json=True, check=True, t
             stderr=subprocess.PIPE,
             check=check,
             text=True,
-            timeout=timeout
+            timeout=timeout,
         )
         stdout = result.stdout.strip()
         stderr = result.stderr.strip()
@@ -47,8 +60,10 @@ def run_kubectl(command, context=KUBECTL_CONTEXT, parse_json=True, check=True, t
             logger.warning(f"kubectl stderr:\n{stderr}")
         if parse_json:
             if not stdout:
-                 logger.error("kubectl command returned empty output, cannot parse JSON.")
-                 return None
+                logger.error(
+                    "kubectl command returned empty output, cannot parse JSON."
+                )
+                return None
             try:
                 return json.loads(stdout)
             except json.JSONDecodeError as e:
@@ -58,15 +73,21 @@ def run_kubectl(command, context=KUBECTL_CONTEXT, parse_json=True, check=True, t
         else:
             return stdout
     except subprocess.TimeoutExpired:
-        logger.error(f"kubectl command timed out after {timeout}s: {' '.join(full_command)}")
+        logger.error(
+            f"kubectl command timed out after {timeout}s: {' '.join(full_command)}"
+        )
         return None
     except subprocess.CalledProcessError as e:
-        logger.error(f"kubectl command failed with exit code {e.returncode}: {' '.join(full_command)}")
-        if e.stderr: logger.error(f"Error output:\n{e.stderr.strip()}")
+        logger.error(
+            f"kubectl command failed with exit code {e.returncode}: {' '.join(full_command)}"
+        )
+        if e.stderr:
+            logger.error(f"Error output:\n{e.stderr.strip()}")
         return None
     except Exception as e:
         logger.error(f"Failed to run kubectl command {' '.join(full_command)}: {e}")
         return None
+
 
 def parse_quantity(quantity_str):
     """Parses Kubernetes resource quantities (CPU, Memory)."""
@@ -74,32 +95,34 @@ def parse_quantity(quantity_str):
         return 0.0
 
     quantity_str = quantity_str.lower()
-    if quantity_str.endswith('m'): # CPU millicores
+    if quantity_str.endswith("m"):  # CPU millicores
         return float(quantity_str[:-1]) / 1000.0
-    elif quantity_str.endswith('ki'): # Memory KiB
+    elif quantity_str.endswith("ki"):  # Memory KiB
         return float(quantity_str[:-2]) * 1024.0
-    elif quantity_str.endswith('mi'): # Memory MiB
+    elif quantity_str.endswith("mi"):  # Memory MiB
         return float(quantity_str[:-2]) * 1024.0**2
-    elif quantity_str.endswith('gi'): # Memory GiB
+    elif quantity_str.endswith("gi"):  # Memory GiB
         return float(quantity_str[:-2]) * 1024.0**3
-    elif quantity_str.endswith('ti'): # Memory TiB
+    elif quantity_str.endswith("ti"):  # Memory TiB
         return float(quantity_str[:-2]) * 1024.0**4
-    elif quantity_str.endswith('k'): # Memory KB
+    elif quantity_str.endswith("k"):  # Memory KB
         return float(quantity_str[:-1]) * 1000.0
-    elif quantity_str.endswith('m'): # Memory MB - Caution: often confused with Mi
+    elif quantity_str.endswith("m"):  # Memory MB - Caution: often confused with Mi
         return float(quantity_str[:-1]) * 1000.0**2
-    elif quantity_str.endswith('g'): # Memory GB
+    elif quantity_str.endswith("g"):  # Memory GB
         return float(quantity_str[:-1]) * 1000.0**3
-    elif quantity_str.endswith('t'): # Memory TB
+    elif quantity_str.endswith("t"):  # Memory TB
         return float(quantity_str[:-1]) * 1000.0**4
-    else: # Assume CPU cores or Bytes
+    else:  # Assume CPU cores or Bytes
         try:
             return float(quantity_str)
         except ValueError:
             logger.warning(f"Could not parse resource quantity: {quantity_str}")
             return 0.0
 
+
 # --- Analysis Functions ---
+
 
 def get_pod_resource_specs():
     """Gets pod resource requests and limits."""
@@ -109,8 +132,12 @@ def get_pod_resource_specs():
         logger.error("Failed to fetch pod data.")
         return None
 
-    specs = defaultdict(lambda: {"requests": {"cpu": 0.0, "memory": 0.0},
-                                 "limits": {"cpu": 0.0, "memory": 0.0}})
+    specs = defaultdict(
+        lambda: {
+            "requests": {"cpu": 0.0, "memory": 0.0},
+            "limits": {"cpu": 0.0, "memory": 0.0},
+        }
+    )
 
     for pod in pods_data["items"]:
         pod_name = pod["metadata"]["name"]
@@ -133,32 +160,43 @@ def get_pod_resource_specs():
 
     return specs
 
+
 def get_pod_usage_metrics():
     """Gets current pod CPU and Memory usage using 'kubectl top pods'."""
     logger.info("Fetching current pod resource usage (kubectl top pods)...")
     # Note: This requires metrics-server to be installed and running.
-    usage_data_str = run_kubectl(["top", "pods", "-A", "--no-headers"], parse_json=False)
+    usage_data_str = run_kubectl(
+        ["top", "pods", "-A", "--no-headers"], parse_json=False
+    )
     if not usage_data_str:
-        logger.error("Failed to fetch pod usage metrics via 'kubectl top pods'. Is metrics-server running?")
+        logger.error(
+            "Failed to fetch pod usage metrics via 'kubectl top pods'. Is metrics-server running?"
+        )
         return None
 
     usage = {}
-    lines = usage_data_str.strip().split('\n')
+    lines = usage_data_str.strip().split("\n")
     for line in lines:
         parts = line.split()
         if len(parts) >= 4:
-            namespace, pod_name, cpu_usage_str, mem_usage_str = parts[0], parts[1], parts[2], parts[3]
+            namespace, pod_name, cpu_usage_str, mem_usage_str = (
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+            )
             if namespace in EXCLUDED_NAMESPACES:
                 continue
             key = f"{namespace}/{pod_name}"
             usage[key] = {
                 "cpu": parse_quantity(cpu_usage_str),
-                "memory": parse_quantity(mem_usage_str)
+                "memory": parse_quantity(mem_usage_str),
             }
         else:
             logger.warning(f"Could not parse 'kubectl top pods' line: {line}")
 
     return usage
+
 
 def analyze_resources(specs, usage):
     """Compares specs and usage to generate recommendations."""
@@ -171,7 +209,9 @@ def analyze_resources(specs, usage):
 
     for key, current_usage in usage.items():
         if key not in specs:
-            logger.warning(f"Usage found for pod '{key}', but no spec data retrieved. Skipping.")
+            logger.warning(
+                f"Usage found for pod '{key}', but no spec data retrieved. Skipping."
+            )
             continue
 
         pod_spec = specs[key]
@@ -189,11 +229,12 @@ def analyze_resources(specs, usage):
                 rec = f"Pod '{key}' current CPU usage ({cpu_usage*1000:.0f}m) is near its limit ({cpu_lim*1000:.0f}m) - {cpu_usage_vs_limit_pct:.1f}%. Consider increasing limit or optimizing."
                 logger.warning(rec)
                 recommendations.append(rec)
-        elif cpu_req > 0 and cpu_usage > cpu_req * 1.5: # Heuristic: High usage without limit set
-             rec = f"Pod '{key}' current CPU usage ({cpu_usage*1000:.0f}m) is significantly higher than request ({cpu_req*1000:.0f}m) and has no limit set. Consider setting a limit."
-             logger.warning(rec)
-             recommendations.append(rec)
-
+        elif (
+            cpu_req > 0 and cpu_usage > cpu_req * 1.5
+        ):  # Heuristic: High usage without limit set
+            rec = f"Pod '{key}' current CPU usage ({cpu_usage*1000:.0f}m) is significantly higher than request ({cpu_req*1000:.0f}m) and has no limit set. Consider setting a limit."
+            logger.warning(rec)
+            recommendations.append(rec)
 
         if mem_lim > 0:
             mem_usage_vs_limit_pct = (mem_usage / mem_lim) * 100
@@ -201,11 +242,12 @@ def analyze_resources(specs, usage):
                 rec = f"Pod '{key}' current Memory usage ({mem_usage/1024**2:.1f}Mi) is near its limit ({mem_lim/1024**2:.1f}Mi) - {mem_usage_vs_limit_pct:.1f}%. Investigate leaks, increase limit, or optimize."
                 logger.warning(rec)
                 recommendations.append(rec)
-        elif mem_req > 0 and mem_usage > mem_req * 1.5: # Heuristic: High usage without limit set
-             rec = f"Pod '{key}' current Memory usage ({mem_usage/1024**2:.1f}Mi) is significantly higher than request ({mem_req/1024**2:.1f}Mi) and has no limit set. Consider setting a limit."
-             logger.warning(rec)
-             recommendations.append(rec)
-
+        elif (
+            mem_req > 0 and mem_usage > mem_req * 1.5
+        ):  # Heuristic: High usage without limit set
+            rec = f"Pod '{key}' current Memory usage ({mem_usage/1024**2:.1f}Mi) is significantly higher than request ({mem_req/1024**2:.1f}Mi) and has no limit set. Consider setting a limit."
+            logger.warning(rec)
+            recommendations.append(rec)
 
         # Check usage vs requests (low usage)
         if cpu_req > 0:
@@ -226,12 +268,17 @@ def analyze_resources(specs, usage):
 
     return recommendations
 
+
 # --- Main Execution ---
 def main():
     logger.info("=== Starting Kubernetes Resource Allocation Analysis ===")
     logger.warning("NOTE: This script uses 'kubectl top pods' for CURRENT usage.")
-    logger.warning("For analysis based on HISTORICAL AVERAGE usage, use 'analyze_resource_usage.py' with Prometheus.")
-    logger.info("Prerequisite: Ensure metrics-server is installed and running in the cluster.")
+    logger.warning(
+        "For analysis based on HISTORICAL AVERAGE usage, use 'analyze_resource_usage.py' with Prometheus."
+    )
+    logger.info(
+        "Prerequisite: Ensure metrics-server is installed and running in the cluster."
+    )
 
     specs = get_pod_resource_specs()
     usage = get_pod_usage_metrics()
@@ -240,32 +287,55 @@ def main():
 
     logger.info("--- Analysis Summary ---")
     if not all_recommendations:
-        logger.info("No major resource optimization recommendations found based on current usage and thresholds.")
+        logger.info(
+            "No major resource optimization recommendations found based on current usage and thresholds."
+        )
     else:
         logger.warning("Potential Optimization Areas Found (based on current usage):")
         # Separate warnings (near limit) from info (low usage)
-        warnings = [r for r in all_recommendations if "near its limit" in r or "no limit set" in r]
+        warnings = [
+            r
+            for r in all_recommendations
+            if "near its limit" in r or "no limit set" in r
+        ]
         infos = [r for r in all_recommendations if "low compared to request" in r]
 
         if warnings:
-             logger.warning("High Usage / Near Limits:")
-             for i, rec in enumerate(warnings): print(f"  W{i+1}. {rec}")
+            logger.warning("High Usage / Near Limits:")
+            for i, rec in enumerate(warnings):
+                print(f"  W{i+1}. {rec}")
         if infos:
-             logger.info("Low Usage / Potential Over-requesting:")
-             for i, rec in enumerate(infos): print(f"  I{i+1}. {rec}")
+            logger.info("Low Usage / Potential Over-requesting:")
+            for i, rec in enumerate(infos):
+                print(f"  I{i+1}. {rec}")
 
     logger.info("=== Kubernetes Resource Allocation Analysis Finished ===")
 
+
 if __name__ == "__main__":
     # Check for kubectl
-    if subprocess.run(["kubectl", "version", "--client"], capture_output=True, check=False).returncode != 0:
-         logger.critical("kubectl command not found or failed to run. Please install it.")
-         sys.exit(2)
+    if (
+        subprocess.run(
+            ["kubectl", "version", "--client"], capture_output=True, check=False
+        ).returncode
+        != 0
+    ):
+        logger.critical(
+            "kubectl command not found or failed to run. Please install it."
+        )
+        sys.exit(2)
     # Check metrics server (basic check)
     logger.info("Checking for metrics-server API availability...")
-    if run_kubectl(["api-versions"], parse_json=False, check=False, timeout=10).find("metrics.k8s.io") == -1:
-         logger.warning("metrics.k8s.io API not found. 'kubectl top' commands will likely fail.")
-         logger.warning("Ensure metrics-server is deployed and running correctly.")
-         # Allow to continue, but usage fetching will fail later.
+    if (
+        run_kubectl(["api-versions"], parse_json=False, check=False, timeout=10).find(
+            "metrics.k8s.io"
+        )
+        == -1
+    ):
+        logger.warning(
+            "metrics.k8s.io API not found. 'kubectl top' commands will likely fail."
+        )
+        logger.warning("Ensure metrics-server is deployed and running correctly.")
+        # Allow to continue, but usage fetching will fail later.
 
     main()
