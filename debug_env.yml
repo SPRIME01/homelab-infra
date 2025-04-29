@@ -1,0 +1,16 @@
+---
+- name: Debug Environment Variables
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Display BEELINK_HOST from environment
+      ansible.builtin.debug:
+        msg: "BEELINK_HOST is {{ lookup('env', 'BEELINK_HOST') }}"
+
+    - name: Display BEELINK_USER from environment
+      ansible.builtin.debug:
+        msg: "BEELINK_USER is {{ lookup('env', 'BEELINK_USER') }}"
+
+    - name: Display JETSON_HOST from environment
+      ansible.builtin.debug:
+        msg: "JETSON_HOST is {{ lookup('env', 'JETSON_HOST') }}"
