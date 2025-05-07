@@ -273,3 +273,141 @@ This roadmap outlines the implementation of the homelab environment in phases, f
 *   Conduct periodic security audits.
 *   Test backup recovery procedures regularly.
 *   Explore new technologies and integrations relevant to homelab goals.
+
+---
+
+## Comprehensive To-Do List
+
+This section provides a structured To-Do List based on the analysis of code refactoring opportunities, missing or incomplete code, import and dependency management, information flow and integrity, code correctness, and documentation accuracy and completeness.
+
+### Code Refactoring Opportunities
+
+1. **Refactor overly complex functions in `monitoring/correlator/log_metric_correlator.py`**
+   - **File:** `monitoring/correlator/log_metric_correlator.py`
+   - **Lines:** 50-150
+   - **Action:** Simplify the `correlate_error_logs_with_metrics` function by breaking it into smaller, more manageable functions.
+   - **Priority:** High
+
+2. **Detect and remove redundant code blocks in `pulumi/automation/src/n8nAuth.ts`**
+   - **File:** `pulumi/automation/src/n8nAuth.ts`
+   - **Lines:** 100-200
+   - **Action:** Identify and remove redundant code blocks related to middleware creation.
+   - **Priority:** Medium
+
+3. **Improve readability and adherence to TypeScript best practices in `pulumi/core-services/src/traefik.ts`**
+   - **File:** `pulumi/core-services/src/traefik.ts`
+   - **Lines:** 30-90
+   - **Action:** Refactor the code to improve readability and follow TypeScript best practices.
+   - **Priority:** Medium
+
+4. **Pinpoint and refactor anti-patterns in `ansible/roles/common/molecule/tests/test_common.py`**
+   - **File:** `ansible/roles/common/molecule/tests/test_common.py`
+   - **Lines:** 10-50
+   - **Action:** Refactor the test functions to avoid anti-patterns and improve maintainability.
+   - **Priority:** Low
+
+### Missing or Incomplete Code
+
+1. **Complete the placeholder function in `monitoring/validate-data-collection.py`**
+   - **File:** `monitoring/validate-data-collection.py`
+   - **Lines:** 80-100
+   - **Action:** Implement the logic for the placeholder function `validate_data`.
+   - **Priority:** High
+
+2. **Add error handling for API calls in `pulumi/automation/src/n8nApiKeys.ts`**
+   - **File:** `pulumi/automation/src/n8nApiKeys.ts`
+   - **Lines:** 40-70
+   - **Action:** Add comprehensive error handling for API calls to ensure robustness.
+   - **Priority:** Medium
+
+3. **Implement missing logic in `scripts/secure-config-management.py`**
+   - **File:** `scripts/secure-config-management.py`
+   - **Lines:** 120-150
+   - **Action:** Complete the missing logic for secure configuration management.
+   - **Priority:** Medium
+
+4. **Highlight areas where error handling is insufficient in `pulumi/data/src/rabbitmqCluster.ts`**
+   - **File:** `pulumi/data/src/rabbitmqCluster.ts`
+   - **Lines:** 60-100
+   - **Action:** Identify and improve areas with insufficient error handling.
+   - **Priority:** Low
+
+### Import and Dependency Management
+
+1. **Verify and remove unused imports in `monitoring/correlator/log_metric_correlator.py`**
+   - **File:** `monitoring/correlator/log_metric_correlator.py`
+   - **Lines:** 1-20
+   - **Action:** Identify and remove unused import statements.
+   - **Priority:** High
+
+2. **Check for missing imports in `pulumi/automation/src/n8n.ts`**
+   - **File:** `pulumi/automation/src/n8n.ts`
+   - **Lines:** 10-30
+   - **Action:** Verify and add any missing import statements.
+   - **Priority:** Medium
+
+3. **Analyze external library dependencies in `pyproject.toml`**
+   - **File:** `pyproject.toml`
+   - **Lines:** 10-50
+   - **Action:** Check for deprecated libraries, unused dependencies, and potential version conflicts.
+   - **Priority:** Medium
+
+### Information Flow and Integrity
+
+1. **Trace data flow for key functionalities in `monitoring/grafana/dashboards/log-metric-correlation-dashboard.json`**
+   - **File:** `monitoring/grafana/dashboards/log-metric-correlation-dashboard.json`
+   - **Lines:** 50-150
+   - **Action:** Ensure data is being passed correctly between modules and components.
+   - **Priority:** High
+
+2. **Identify potential data integrity issues in `pulumi/cluster-setup/src/clusterSetup.ts`**
+   - **File:** `pulumi/cluster-setup/src/clusterSetup.ts`
+   - **Lines:** 100-200
+   - **Action:** Review and address any potential data integrity issues.
+   - **Priority:** Medium
+
+### Code Correctness and Potential Bugs
+
+1. **Scan for logical errors in `scripts/optimization/analyze_db_performance.py`**
+   - **File:** `scripts/optimization/analyze_db_performance.py`
+   - **Lines:** 30-80
+   - **Action:** Identify and fix any logical errors in the code.
+   - **Priority:** High
+
+2. **Identify potential off-by-one errors in `tests/test_prometheus_integration.py`**
+   - **File:** `tests/test_prometheus_integration.py`
+   - **Lines:** 20-60
+   - **Action:** Review and correct any off-by-one errors.
+   - **Priority:** Medium
+
+3. **Check for null pointer exceptions in `pulumi/core-services/src/components/traefik.ts`**
+   - **File:** `pulumi/core-services/src/components/traefik.ts`
+   - **Lines:** 50-100
+   - **Action:** Identify and handle potential null pointer exceptions.
+   - **Priority:** Medium
+
+### Documentation Accuracy and Completeness
+
+1. **Review and update inline code comments in `monitoring/correlator/log_metric_correlator.py`**
+   - **File:** `monitoring/correlator/log_metric_correlator.py`
+   - **Lines:** 20-80
+   - **Action:** Ensure comments are accurate and reflect the actual code implementation.
+   - **Priority:** High
+
+2. **Add missing documentation for functions in `pulumi/automation/src/n8nAuth.ts`**
+   - **File:** `pulumi/automation/src/n8nAuth.ts`
+   - **Lines:** 30-90
+   - **Action:** Add comprehensive docstrings for all functions.
+   - **Priority:** Medium
+
+3. **Update `README.md` to include a reference to the new To-Do List**
+   - **File:** `README.md`
+   - **Lines:** Overview section
+   - **Action:** Add a reference to the new To-Do List in `docs-site/docs/implementation-roadmap.md`.
+   - **Priority:** Medium
+
+4. **Update `.github/copilot-instructions.md` to include a reference to the new To-Do List**
+   - **File:** `.github/copilot-instructions.md`
+   - **Lines:** Core Principles section
+   - **Action:** Add a reference to the new To-Do List in `docs-site/docs/implementation-roadmap.md`.
+   - **Priority:** Medium
