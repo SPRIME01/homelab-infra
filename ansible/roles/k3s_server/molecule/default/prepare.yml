@@ -3,7 +3,7 @@
   hosts: all
   gather_facts: true
   become: true
-  
+
   tasks:
     - name: Update apt cache
       ansible.builtin.apt:
@@ -18,7 +18,7 @@
           - python3
           - python3-pip
         state: present
-      
+
     - name: Create test directories
       ansible.builtin.file:
         path: "{{ item }}"
@@ -27,7 +27,7 @@
       loop:
         - "/etc/systemd/system"
         - "/usr/local/bin"
-      
+
     - name: Set up testing environment
       ansible.builtin.debug:
         msg: "Preparing test environment for k3s_server role"

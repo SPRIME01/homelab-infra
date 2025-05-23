@@ -13,11 +13,11 @@
       ansible.builtin.copy:
         content: |
           #!/usr/bin/env python3
-          
+
           import os
           import json
           import subprocess
-          
+
           class PulumiTestHelper:
               def __init__(self, project_dir, stack='dev'):
                   self.project_dir = project_dir
@@ -25,14 +25,14 @@
                   self.env = os.environ.copy()
                   self.env['PULUMI_CONFIG_PASSPHRASE'] = 'test-passphrase'
                   self.env['PULUMI_BACKEND_URL'] = 'file:///tmp/pulumi-test-state'
-          
+
               def preview(self):
                   """Run a mock preview and return structured output"""
                   # In a real test, this would call the actual pulumi command
                   # For now we return mock data
                   return {
-                      'changes': 3, 
-                      'creates': 2, 
+                      'changes': 3,
+                      'creates': 2,
                       'updates': 1,
                       'deletes': 0,
                       'same': 5,
@@ -42,7 +42,7 @@
                           {'type': 'kubernetes:apps/v1:Deployment', 'name': 'openebs-operator', 'change': 'update'}
                       ]
                   }
-          
+
               def get_outputs(self):
                   """Get stack outputs"""
                   # For testing, return mock outputs based on project
@@ -62,11 +62,11 @@
                           'traefikEndpoint': 'http://192.168.1.100:80'
                       }
                   return {}
-          
+
               def validate_stack(self):
                   """Validate stack configuration"""
                   return True
-          
+
           if __name__ == "__main__":
               # Example usage
               helper = PulumiTestHelper("/tmp/pulumi-test/storage")

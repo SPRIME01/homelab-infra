@@ -15,7 +15,7 @@ def test_k3s_service_file(host):
     assert service_file.exists
     assert service_file.is_file
     assert service_file.mode == 0o644
-    
+
     # Check content based on server role (first node vs. other nodes)
     hostname = host.check_output("hostname")
     if hostname == "k3s-server-1":
@@ -30,7 +30,7 @@ def test_k3s_config_dir(host):
     config_dir = host.file(f"{TEST_BASE_DIR}/etc/rancher/k3s")
     assert config_dir.exists
     assert config_dir.is_directory
-    
+
     server_config_dir = host.file(f"{TEST_BASE_DIR}/etc/rancher/k3s/server")
     assert server_config_dir.exists
     assert server_config_dir.is_directory
@@ -40,7 +40,7 @@ def test_k3s_token_file(host):
     """Check that the token file exists on first server."""
     hostname = host.check_output("hostname")
     token_file = host.file(f"{TEST_BASE_DIR}/var/lib/rancher/k3s/server/node-token")
-    
+
     if hostname == "k3s-server-1":
         assert token_file.exists
         assert token_file.is_file

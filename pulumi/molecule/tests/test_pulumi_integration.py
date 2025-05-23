@@ -30,10 +30,10 @@ def test_pulumi_project_outputs(host, project):
     """Test that each Pulumi project produces expected outputs."""
     if "PulumiTestHelper" not in globals():
         pytest.skip("PulumiTestHelper not available")
-    
+
     helper = PulumiTestHelper(f"/tmp/pulumi-test/{project}")
     outputs = helper.get_outputs()
-    
+
     # Verify project-specific outputs
     if project == "cluster-setup":
         assert "kubeconfig" in outputs
@@ -55,7 +55,7 @@ def test_pulumi_mock_cli(host):
     assert pulumi_cli.exists
     assert pulumi_cli.is_file
     assert pulumi_cli.mode == 0o755
-    
+
     # Test execution
     cmd = host.run("pulumi preview")
     assert cmd.rc == 0

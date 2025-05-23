@@ -95,10 +95,10 @@ function check_prerequisites() {
 # Function to update the ConfigMap in the deployment YAML
 function update_configmap() {
     log "INFO" "Updating ConfigMap with correlator script..."
-    
+
     # Read the correlator script
     local script_content=$(cat "${CORRELATOR_PY}")
-    
+
     # Create a temporary deployment file with the script content
     local temp_deployment=$(mktemp)
     awk -v script="${script_content}" '
@@ -117,7 +117,7 @@ function update_configmap() {
         }
         { skip_next = 0; print }
     ' "${DEPLOYMENT_YAML}" > "${temp_deployment}"
-    
+
     mv "${temp_deployment}" "${DEPLOYMENT_YAML}"
     log "INFO" "ConfigMap updated successfully"
 }
@@ -125,22 +125,22 @@ function update_configmap() {
 # Function to deploy the correlator
 function deploy_correlator() {
     log "INFO" "Deploying log-metric correlator to namespace ${NAMESPACE}..."
-    
+
     # Check if namespace exists, create if not
     if ! kubectl get namespace "${NAMESPACE}" &> /dev/null; then
         log "INFO" "Creating namespace: ${NAMESPACE}"
         kubectl create namespace "${NAMESPACE}"
     fi
-    
+
     # Apply the deployment
     kubectl apply -f "${DEPLOYMENT_YAML}" -n "${NAMESPACE}"
-    
+
     log "INFO" "Log-metric correlator deployed successfully"
-    
+
     # Wait for deployment to be ready
     log "INFO" "Waiting for deployment to be ready..."
     kubectl rollout status deployment/log-metric-correlator -n "${NAMESPACE}" --timeout=120s
-    
+
     if [ $? -eq 0 ]; then
         log "INFO" "Deployment is ready"
     else

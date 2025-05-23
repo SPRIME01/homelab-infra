@@ -17,4 +17,3 @@
 3. **Components**:
    - Components are structured as Pulumi `ComponentResource` classes
    - Proper mock patterns for Kubernetes resources are used in tests
-

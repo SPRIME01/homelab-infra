@@ -101,7 +101,7 @@ function check_prerequisites() {
 # Function to list available dashboards
 function list_dashboards() {
     log "INFO" "Available dashboards:"
-    
+
     for dashboard_file in "${DASHBOARD_DIR}"/*.json; do
         if [ -f "${dashboard_file}" ]; then
             dashboard_name=$(basename "${dashboard_file}" .json)
@@ -115,21 +115,21 @@ function list_dashboards() {
 function deploy_dashboard() {
     local dashboard_file=$1
     local dashboard_name=$(basename "${dashboard_file}" .json)
-    
+
     log "INFO" "Deploying dashboard: ${dashboard_name}"
-    
+
     # Read dashboard JSON
     local dashboard_json=$(cat "${dashboard_file}")
-    
+
     # Create ConfigMap name based on dashboard filename
     local configmap_name="grafana-dashboard-${dashboard_name}"
-    
+
     # Create ConfigMap with dashboard JSON
     kubectl create configmap "${configmap_name}" \
         --from-literal=dashboard.json="${dashboard_json}" \
         --dry-run=client -o yaml | \
         kubectl apply -n "${NAMESPACE}" -f -
-    
+
     if [ $? -eq 0 ]; then
         log "INFO" "Successfully deployed dashboard: ${dashboard_name}"
     else
@@ -141,25 +141,25 @@ function deploy_dashboard() {
 # Function to refresh Grafana sidecar
 function refresh_grafana_sidecar() {
     log "INFO" "Refreshing Grafana dashboard sidecar..."
-    
+
     # Find Grafana pods
     local grafana_pods=$(kubectl get pods -n "${NAMESPACE}" -l app=grafana -o name)
-    
+
     if [ -z "${grafana_pods}" ]; then
         log "WARN" "No Grafana pods found in namespace ${NAMESPACE}"
         return 0
     fi
-    
+
     # Delete Grafana pods to trigger a refresh (the sidecar will reload dashboards)
     for pod in ${grafana_pods}; do
         kubectl delete -n "${NAMESPACE}" "${pod}"
         log "INFO" "Deleted ${pod} to trigger dashboard refresh"
     done
-    
+
     # Wait for Grafana to be back up
     log "INFO" "Waiting for Grafana to restart..."
     kubectl wait --for=condition=ready pods -l app=grafana -n "${NAMESPACE}" --timeout=60s
-    
+
     if [ $? -eq 0 ]; then
         log "INFO" "Grafana is ready"
     else
@@ -223,7 +223,7 @@ done
     if [ -n "${SELECTED_DASHBOARD}" ]; then
         # Deploy specific dashboard
         dashboard_file="${DASHBOARD_DIR}/${SELECTED_DASHBOARD}.json"
-        
+
         if [ -f "${dashboard_file}" ]; then
             deploy_dashboard "${dashboard_file}"
         else

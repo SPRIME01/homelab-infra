@@ -5,29 +5,29 @@ import pytest
 
 class PulumiMocks:
     """Class to provide mock functionality similar to Pulumi's runtime.setMocks()"""
-    
+
     @staticmethod
     def new_resource(args):
         """Mock resource creation"""
         resource_type = args["type"]
         resource_name = args["name"]
         resource_inputs = args["inputs"] or {}
-        
+
         # Create a deterministic ID based on resource type and name
         resource_id = f"{resource_name}-{resource_type}-id"
-        
+
         # For Kubernetes resources, apply some specific mocking
         if resource_type.startswith("kubernetes:"):
             # Apply default namespace if not set and it's a namespaced resource
             if "metadata" in resource_inputs and "namespace" not in resource_inputs["metadata"]:
                 if not resource_type.endswith("Namespace") and not resource_type.endswith("ClusterRole"):
                     resource_inputs["metadata"]["namespace"] = "default"
-        
+
         return {
             "id": resource_id,
             "state": resource_inputs
         }
-    
+
     @staticmethod
     def call(args):
         """Mock function calls"""
@@ -36,23 +36,23 @@ class PulumiMocks:
 
 class PulumiTestFixture:
     """Helper class for testing Pulumi stacks in Python"""
-    
+
     def __init__(self, project_dir):
         self.project_dir = project_dir
         self.resources = []
         self.mocks = PulumiMocks()
-    
+
     def setup_mocks(self):
         """Set up mocks for testing"""
         # In a real implementation, this would hook into Pulumi's runtime
         pass
-    
+
     def apply_stack(self, stack_name="dev"):
         """Apply the stack changes (simulated)"""
         # Simulate resource creation
         self.resources = self._get_mock_resources()
         return self.resources
-    
+
     def preview_stack(self):
         """Preview stack changes (simulated)"""
         return {
@@ -61,11 +61,11 @@ class PulumiTestFixture:
             "updates": 1,
             "deletes": 0
         }
-    
+
     def get_outputs(self):
         """Get stack outputs based on project type"""
         project_name = os.path.basename(self.project_dir)
-        
+
         if project_name == "cluster-setup":
             return {
                 "kubeconfig": "/tmp/kube/config",
@@ -83,11 +83,11 @@ class PulumiTestFixture:
                 "traefikEndpoint": "http://192.168.1.100:80"
             }
         return {}
-    
+
     def _get_mock_resources(self):
         """Get mock resources based on project type"""
         project_name = os.path.basename(self.project_dir)
-        
+
         if project_name == "cluster-setup":
             return [
                 {"type": "kubernetes:core/v1:Namespace", "name": "monitoring", "change": "create"},

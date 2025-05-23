@@ -2,6 +2,10 @@ import os
 import pytest
 import testinfra.utils.ansible_runner
 
+# Skip molecule tests if not running in molecule environment
+if 'MOLECULE_INVENTORY_FILE' not in os.environ:
+    pytest.skip("Skipping molecule tests - not running in molecule environment", allow_module_level=True)
+
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
     os.environ['MOLECULE_INVENTORY_FILE']
 ).get_hosts('all')
@@ -16,7 +20,7 @@ def test_configuration_files(host):
     assert config_file.is_file
     assert config_file.user == "homeassistant"
     assert config_file.group == "homeassistant"
-    
+
     # Check integration files
     for integration in ["mqtt", "influxdb", "voice_assistant", "ssh"]:
         integration_file = host.file(f"{TEST_BASE_DIR}/config/integrations/{integration}.yaml")
@@ -34,7 +38,7 @@ def test_ssh_setup(host):
     assert ssh_dir.user == "homeassistant"
     assert ssh_dir.group == "homeassistant"
     assert ssh_dir.mode == 0o700
-    
+
     auth_keys = host.file(f"{TEST_BASE_DIR}/config/.ssh/authorized_keys")
     assert auth_keys.exists
     assert auth_keys.is_file
@@ -52,7 +56,7 @@ def test_addon_directories(host):
         f"{TEST_BASE_DIR}/usr/share/hassio/addons/a0d7b954_ssh",
         f"{TEST_BASE_DIR}/usr/share/hassio/addons/a0d7b954_rhasspy"
     ]
-    
+
     for dir_path in addon_dirs:
         dir_obj = host.file(dir_path)
         assert dir_obj.exists

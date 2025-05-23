@@ -16,11 +16,11 @@
   pre_tasks:
     - name: Debug - show variables
       ansible.builtin.debug:
-        msg: 
+        msg:
           - "Python interpreter: {{ ansible_python_interpreter }}"
           - "Working directory: {{ ansible_env.PWD }}"
           - "Test root: {{ test_root }}"
-    
+
     - name: Ensure test directories exist
       ansible.builtin.file:
         path: "{{ item }}"
@@ -33,7 +33,7 @@
         - "{{ test_root }}/usr/local/bin"
       register: dir_creation
       when: not ansible_check_mode
-      
+
     - name: Debug directory creation
       ansible.builtin.debug:
         var: dir_creation
@@ -62,7 +62,7 @@
       ansible.builtin.debug:
         msg: "Test completed successfully"
       when: not ansible_check_mode
-    
+
     - name: Cleanup test directories
       ansible.builtin.file:
         path: "{{ test_root }}"

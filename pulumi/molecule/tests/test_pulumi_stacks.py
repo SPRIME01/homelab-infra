@@ -24,10 +24,10 @@ def test_stack_preview(host, project, pulumi_test):
     """Test stack preview works for each project"""
     # Set the project directory for the test
     pulumi_test.project_dir = PROJECT_DIRS[project]
-    
+
     # Preview stack changes
     preview = pulumi_test.preview_stack()
-    
+
     # Basic validation
     assert isinstance(preview, dict)
     assert "changes" in preview
@@ -41,10 +41,10 @@ def test_stack_outputs(host, project, pulumi_test):
     """Test stack outputs for each project"""
     # Set the project directory for the test
     pulumi_test.project_dir = PROJECT_DIRS[project]
-    
+
     # Get stack outputs
     outputs = pulumi_test.get_outputs()
-    
+
     # Project-specific validations
     if project == "cluster-setup":
         assert "kubeconfig" in outputs
@@ -65,14 +65,14 @@ def test_stack_resources(host, project, pulumi_test):
     """Test resource creation for each project"""
     # Set the project directory for the test
     pulumi_test.project_dir = PROJECT_DIRS[project]
-    
+
     # Apply stack
     resources = pulumi_test.apply_stack()
-    
+
     # Basic validation
     assert isinstance(resources, list)
     assert len(resources) > 0
-    
+
     # Check that resources have basic properties
     for resource in resources:
         assert "type" in resource

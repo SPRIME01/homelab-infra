@@ -253,17 +253,17 @@ test_role() {
                     ;;
                 "dry-run")
                     log "INFO" "Running ansible-playbook with dry-run (--check) for $role"
-                    
+
                     # Create a separator in the log file for better readability
                     echo "===== START OF K3S SERVER DRY-RUN TEST OUTPUT =====" | tee -a "$LOG_FILE"
-                    
+
                     # Execute the script and capture both output and exit status
                     # tee command to capture output both to log file and terminal
                     ./scripts/test-k3s-server.sh --check --verbose 2>&1 | tee -a "$LOG_FILE"
                     k3s_test_exit_code=${PIPESTATUS[0]}
-                    
+
                     echo "===== END OF K3S SERVER DRY-RUN TEST OUTPUT =====" | tee -a "$LOG_FILE"
-                    
+
                     if [ $k3s_test_exit_code -eq 0 ]; then
                         log "TEST" "✅ Dry-run: $role: PASS"
                         ((passed_stages++))
@@ -274,16 +274,16 @@ test_role() {
                     ;;
                 "run")
                     log "INFO" "Running full test for $role"
-                    
+
                     # Create a separator in the log file for better readability
                     echo "===== START OF K3S SERVER TEST OUTPUT =====" | tee -a "$LOG_FILE"
-                    
+
                     # Execute the script and capture both output and exit status
                     ./scripts/test-k3s-server.sh --verbose 2>&1 | tee -a "$LOG_FILE"
                     k3s_test_exit_code=${PIPESTATUS[0]}
-                    
+
                     echo "===== END OF K3S SERVER TEST OUTPUT =====" | tee -a "$LOG_FILE"
-                    
+
                     if [ $k3s_test_exit_code -eq 0 ]; then
                         log "TEST" "✅ Run: $role: PASS"
                         ((passed_stages++))
@@ -365,11 +365,11 @@ mkdir -p "$(dirname "$LOG_FILE")"
 run_ansible_playbook_dryrun() {
   local role=$1
   local detailed_log_file="${LOG_DIR}/ansible-${role}-detailed-$(date +%Y%m%d-%H%M%S).log"
-  
+
   log_info "Running ansible-playbook with dry-run (--check) for $role"
   # Execute ansible-playbook and capture output to both console and log file
   ansible-playbook -i "${role}/tests/inventory" "${role}/tests/test.yml" --check -v | tee "$detailed_log_file"
-  
+
   if [ ${PIPESTATUS[0]} -eq 0 ]; then
     log_test_result "Dry-run" "$role" "PASS"
   else

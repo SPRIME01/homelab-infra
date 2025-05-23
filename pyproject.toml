@@ -36,6 +36,7 @@ dependencies = [
     "kafka-python>=2.1.5",
     "pulumi>=3.94.0", # Choose one constraint
     "molecule>=25.4.0", # Choose one constraint
+    "loguru",  # Added loguru to project dependencies
 ]
 
 [project.optional-dependencies]

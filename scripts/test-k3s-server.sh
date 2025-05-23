@@ -31,12 +31,12 @@ cleanup() {
     sudo rm -f "/etc/sudoers.d/k3s-test-temp"
     echo "Temporary sudo privileges removed"
   fi
-  
+
   if [ -f "/tmp/test-inventory.yml" ]; then
     rm -f /tmp/test-inventory.yml
     echo "Temporary inventory removed"
   fi
-  
+
   if [ -f "/etc/systemd/system/k3s.service" ] && [ "$CHECK_MODE" != "true" ]; then
     sudo systemctl stop k3s.service 2>/dev/null || true
     sudo rm -f /etc/systemd/system/k3s.service
@@ -113,17 +113,17 @@ EOF
 # Main test runner
 run_test() {
   echo "Running K3s server tests in ${CHECK_MODE} mode..."
-  
+
   # Ensure we're in the correct directory
   cd "$(dirname "$0")/.." || exit 1
   echo "Working directory: $(pwd)"
-  
+
   # Create test inventory
   create_test_inventory
-  
+
   # Set up sudo access
   setup_sudo_nopasswd
-  
+
   # Create mock service
   create_mock_service
 
@@ -133,13 +133,13 @@ run_test() {
   export ANSIBLE_FORCE_COLOR=1
   export ANSIBLE_VERBOSITY=3
   export ANSIBLE_LOG_PATH="/tmp/ansible-k3s-test.log"
-  
+
   echo "Running ansible-playbook with inventory: $(cat /tmp/test-inventory.yml)"
-  
+
   # Run the tests with full debugging
   if [ "$CHECK_MODE" = true ]; then
     echo "Executing ansible-playbook in check mode..."
-    
+
     ansible-playbook \
       -i /tmp/test-inventory.yml \
       ansible/roles/k3s_server/tests/test.yml \

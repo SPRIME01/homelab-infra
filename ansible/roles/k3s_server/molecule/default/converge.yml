@@ -10,7 +10,7 @@
     k3s_server_binary: "{{ test_root }}/usr/local/bin/k3s"
     k3s_server_install_dir: "{{ test_root }}/usr/local/bin"
     k3s_server_service_file: "{{ test_root }}/etc/systemd/system/k3s.service"
-    
+
     # Mocked dependencies
     k3s_server_skip_download: true
     k3s_server_skip_service: true
@@ -19,7 +19,7 @@
     k3s_server_url: "https://127.0.0.1:6443"
 
   pre_tasks:
-    - name: Create test directories 
+    - name: Create test directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory

@@ -2,6 +2,10 @@ import os
 import pytest
 import testinfra.utils.ansible_runner
 
+# Skip molecule tests if not running in molecule environment
+if 'MOLECULE_INVENTORY_FILE' not in os.environ:
+    pytest.skip("Skipping molecule tests - not running in molecule environment", allow_module_level=True)
+
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
     os.environ['MOLECULE_INVENTORY_FILE']
 ).get_hosts('all')
